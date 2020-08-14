@@ -1,6 +1,7 @@
 package main
 
 import (
+	"datastructure/linklist"
 	"datastructure/queue"
 	"datastructure/stack"
 	"fmt"
@@ -54,7 +55,36 @@ func main() {
 		if ok {
 			fmt.Printf("第 %d 次出队成功，出队元素 %v \n", i+1, resultQ)
 		} else {
-			fmt.Printf("第 %d 次出队失败", i)
+			fmt.Printf("第 %d 次出队失败\n", i)
 		}
 	}
+
+	// 声明一个 linklist.LinkList 的结构体变量
+	var list linklist.LinkList
+	// 初始化链表
+	(&list).InitLinkList()
+	// 初始化 Node 结点
+	var node1 linklist.Node
+	node1.Data = 1
+	var node2 linklist.Node
+	node2.Data = 2
+	var node3 linklist.Node
+	node3.Data = 3
+	var node4 linklist.Node
+	node4.Data = 4
+	// 放入 list 内
+	list.InsertIntoLinkList(&node1, 1)
+	list.InsertIntoLinkList(&node3, 1)
+	list.InsertIntoLinkList(&node2, 1)
+	list.InsertIntoLinkList(&node4, 1)
+
+	// fmt.Println(&list)
+	// fmt.Println(unsafe.Sizeof(node1.Next))
+	// fmt.Println(unsafe.Sizeof(node1.Data))
+	// fmt.Println(unsafe.Sizeof(list))
+
+	list.ShowList()
+	node, ok := list.SerachInLinkList(2)
+	fmt.Println("3在结点", node, ok)
+
 }
