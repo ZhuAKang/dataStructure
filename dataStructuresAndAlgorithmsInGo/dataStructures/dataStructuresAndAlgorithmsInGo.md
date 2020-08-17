@@ -563,17 +563,200 @@ cities[1]["英国"] = "伦敦"
 
   在链表的指定位置插入结点。
 
+  <img src="img\单链表的插入.jpg" style="zoom:80%;" />
+
 - 删除函数
 
   删除指定位置的链表结点。
 
+  ![](img\单链表的删除.jpg)
+
 - 查找函数
 
-  查找指定结点在链表中的位置。
-
-- 
+  查找指定结点在链表中的位置。由于链表数据存取的不连续性，不能随机存取。所以在查找的时候只能顺序查找，时间复杂度在O(n)。
 
 #### 2.3.3 使用 Golang 链表
+
+​	**注：**在这里，我尝试去建立一个通用的单链表结构体并实现相关的查询、删除方法。但是在编写查找函数的时候遇见了很大的问题：想要这个结构体通用，则其接受的类型就设为了 interface ，但是两个**原始数据相等但是不相同**的 interface 类型如何比较是否是相等的？尝试使用reflect或者其他的一些办法没有解决比较值的这个问题，不能比较是否相等那就也不能在这个单链表上删除特定元素值的结点了。所以这一块卡住了，但是其他的函数：例如初始化、查询长度、插入函数。查找、删除这两个函数这一块的问题待以后解决吧。或者有大佬可以来给我指点一下。
+
+​	代码在 *linklist/link_list.go*
+
+```go
+package linklist
+
+import (
+
+	// "C"
+	"fmt"
+	"sync"
+)
+
+// Node 为链表节点的数据结构
+// 这里面 Next 和 Data 做导出
+// 只是为了下面在实现队列或栈的链表实现的时候可以直接用这里面的
+type Node struct {
+	// 指针域
+	Next *Node
+	// 数据域
+	Data interface{}
+}
+
+// LinkList 为链表的数据结构
+type LinkList struct {
+	// 链表的头节点
+	head *Node
+	// 链表的尾部
+	tail *Node
+	// 链表的长度
+	len int
+	// 一个读写互斥锁：用于保护数据，防止读写的冲突操作
+	lock sync.RWMutex
+}
+
+// TODO: 下面所有的函数有很大的问题没有考虑到链表的尾部
+// InitLinkList 初始化单链表
+func (linkList *LinkList) InitLinkList() {
+	var node Node
+	// 这一块必须是创建的 Node 实例而不是 *Node。这样的话后面报 nil pointer 错误
+	// 这一块是必须先创建结构体的变量实体，创建指针的话不指向指定结构体变量实体的话就是nil pointer错误
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+	linkList.head = &node
+	linkList.tail = &node
+	linkList.len = 0
+}
+
+// // InitCirclList 初始化循环链表
+// func InitCirclList() *Node {
+
+// 	return nil
+// }
+
+// Length 查询链表长度
+func (linkList *LinkList) Length() int {
+	return linkList.len
+}
+
+// SerachInLinkList 单链表上查询（只查离链表头最近的一个的前一个结点）
+// 传入一个 interface 类型的值，查询链上是否有此值
+// 有的话返回这个值所在结点的前一个结点的指针及 true ，否则返回 nil 和 false
+func (linkList *LinkList) SerachInLinkList(item interface{}) (*Node, bool) {
+	for i := 0; i < linkList.len; i++ {
+		currentNode := linkList.head
+		// 都是 interface 类型，比较值相等不能使用 “ == ” 了
+		// 可以使用 reflect 包下的 func DeepEqual(a1, a2 interface{}) bool
+		// TODO: 比较这一块有问题，使用上面的也不太行，可能要用反射包里的东西
+		// reflect.ValueOf(currentNode.Next.Data) == reflect.ValueOf(item)
+		if currentNode.Next != nil &&
+			currentNode.Next.Data == item {
+			return currentNode, true
+		}
+	}
+	return nil, false
+}
+
+// DeleteInLinkList 单链表上的删除（只删除离链表头最近的一个）
+// TODO: 删除的逻辑要注意，注意删除的是链表尾部
+func (linkList *LinkList) DeleteInLinkList(item interface{}) bool {
+	// 修改前要加锁
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+	beforeDeleteNode, _ := linkList.SerachInLinkList(item)
+	if beforeDeleteNode.Next != nil {
+		// 获取待删除结点指针
+		deleteNode := beforeDeleteNode.Next
+		// 从链上删除
+		beforeDeleteNode.Next = deleteNode.Next
+		// 删除的是链表尾
+		if deleteNode == linkList.tail {
+			linkList.tail = beforeDeleteNode
+		}
+
+		// TODO: 此处可能需要内存释放，考虑使用 cgo
+		linkList.len--
+		return true
+	}
+	return false
+
+}
+
+// InsertIntoLinkList 单链表上的插入操作
+// 参数: node 为待插入的节点；position 为节点插入的位置，从0开始
+// 返回值: true 表示插入成功，否则插入失败。失败可能是由于插入的位置不对
+// 插入位置，从 1 开始，0 位置放的是头结点
+func (linkList *LinkList) InsertIntoLinkList(node *Node, position int) bool {
+	// 修改前要加锁
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+
+	// 插入链表尾部
+	if position == linkList.Length()+1 {
+		linkList.tail.Next = node
+		// 链表尾部必须指向后面（重要）
+		linkList.tail = node
+		linkList.len++
+		return true
+	} else {
+		if position > 0 && position <= linkList.Length() {
+
+			beforInsertNode := linkList.head
+			// 找到待插入的前一个结点
+			for i := 1; i < position; i++ {
+				beforInsertNode = beforInsertNode.Next
+			}
+			// 断链插入
+			node.Next = beforInsertNode.Next
+			beforInsertNode.Next = node
+			linkList.len++
+			return true
+		}
+
+	}
+	return false
+}
+
+// ShowList 打印链表
+func (linkList *LinkList) ShowList() {
+	curNode := linkList.head
+	for i := 0; i < linkList.len; i++ {
+		curNode = curNode.Next
+		fmt.Println(curNode.Data)
+	}
+}
+
+```
+
+main下的测试代码如下：
+
+```go
+// 声明一个 linklist.LinkList 的结构体变量
+	var list linklist.LinkList
+	// 初始化链表
+	(&list).InitLinkList()
+	// 初始化 Node 结点
+	var node1 linklist.Node
+	node1.Data = 1
+	var node2 linklist.Node
+	node2.Data = 2
+	var node3 linklist.Node
+	node3.Data = 3
+	var node4 linklist.Node
+	node4.Data = 4
+	// 放入 list 内
+	list.InsertIntoLinkList(&node1, 1)
+	list.InsertIntoLinkList(&node3, 1)
+	list.InsertIntoLinkList(&node2, 1)
+	list.InsertIntoLinkList(&node4, 1)
+
+	// fmt.Println(&list)
+	// fmt.Println(unsafe.Sizeof(node1.Next))
+	// fmt.Println(unsafe.Sizeof(node1.Data))
+	// fmt.Println(unsafe.Sizeof(list))
+
+	list.ShowList()
+	node, ok := list.SerachInLinkList(2)
+	fmt.Println("3在结点", node, ok)
+```
 
 
 
