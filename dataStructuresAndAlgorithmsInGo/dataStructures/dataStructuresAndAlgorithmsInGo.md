@@ -762,6 +762,70 @@ main下的测试代码如下：
 
 ### 2.4 栈与队列的链表实现
 
+因为上面的链表功能不够完善，部分函数存在问题，不能够满足栈和队列的实现需求，所以在上面链表的基础之上新增两个函数如下：
+
+```go
+// DeleteSP 删除从头结点开始的第 XX 个结点
+// 也即删除指定序号的结点
+// 删除成功返回删除的结点的值以及true；否则返回 nil 和 false
+func (linkList *LinkList) DeleteSP(position int) (interface{}, bool) {
+	// 要考虑好，删除的是链表上的第一个还是最后一个又或者是第一个和最后一个指向的是同一个结点
+	if position > 0 {
+		// 删除第一个且链表就一个元素
+		if position == 1 && linkList.Length() == 1 {
+			deleteNode := linkList.head.Next
+			linkList.tail = linkList.head
+			linkList.len--
+			return deleteNode.Data, true
+		} else if position == linkList.len {
+			// 删除最后一个
+			deleteNode := linkList.tail
+			beforeNode := linkList.head
+			// 找到最后一个结点的前一个结点
+			for i := 1; i < linkList.len; i++ {
+				beforeNode = beforeNode.Next
+			}
+			// 删除
+			linkList.tail = beforeNode
+			beforeNode.Next = nil
+			linkList.len--
+			return deleteNode.Data, true
+		} else {
+			// 删除这之间的结点
+			beforeDeleteNode := linkList.head
+			// deleteNode := linkList.head.Next
+			// 找到待删结点的前一个结点
+			for i := 1; i < position; i++ {
+				beforeDeleteNode = beforeDeleteNode.Next
+			}
+			// 删除
+			deleteNode := beforeDeleteNode.Next
+			beforeDeleteNode.Next = deleteNode.Next
+			linkList.len--
+			return deleteNode.Data, true
+		}
+
+	}
+	return nil, false
+}
+
+// SearchByID 根据位置查找结点
+// 查找成功则返回查找到的结点以及 true ，否则返回 nil 和 false
+func (linkList *LinkList) SearchByID(position int) (*Node, bool) {
+
+	if position < linkList.Length() && position > 0 {
+		loNode := linkList.head
+		for i := 1; i < position; i++ {
+			loNode = loNode.Next
+		}
+		return loNode.Next, true
+	}
+	return nil, false
+}
+```
+
+
+
 #### 2.4.1 使用链表实现栈
 
 - **1 思路**
@@ -770,9 +834,158 @@ main下的测试代码如下：
 
 - **2 注意事项**
 
-  
+  栈的结构体中栈高度可以不需要了，链表的长度就是栈的高度。
 
 - **3 完整源码**
+
+  **stack/link_list_stack.go**
+
+  ```go
+  package stack
+  
+  import (
+  	"datastructure/linklist"
+  	"sync"
+  )
+  
+  // Lstack 这是链表实现的栈的数据结构
+  type Lstack struct {
+  	// 栈的主体结构：链表
+  	stack linklist.LinkList
+  
+  	// 一个读写互斥锁：用于保护栈的数S据，防止读写的冲突操作
+  	lock sync.RWMutex
+  
+  	// 一个栈容量：int 类型，如果是复数则默认是无上限的
+  	cap int
+  
+  	// 栈高度指针（就不用了，链表的长度就是栈的高度）
+  	// height uint
+  
+  }
+  
+  // InitStack 创建栈s
+  // 将此方法绑定到 Lstack 这个公开的栈的 struct 上面
+  // 传入一个参数 cap (整型) ，表示栈的容量：
+  //      传入 = 0 表示需要创建的栈的容量无上限、自增长
+  //      传入 > 0 的非 0 整数表示创建的栈容量有限
+  //      传入 < 0 的，参数错误，创建失败
+  func (s *Lstack) InitStack(cap int) bool {
+  	if cap >= 0 {
+  		s.stack.InitLinkList()
+  		s.cap = cap
+  		return true
+  	}
+  	return false
+  }
+  
+  // IsEmpty 判断栈是否为空，为空则返回true，否则返回false。
+  func (s *Lstack) IsEmpty() bool {
+  	if s.stack.Length() == 0 {
+  		return true
+  	}
+  	return false
+  }
+  
+  // Height 栈的高度
+  func (s *Lstack) Height() int {
+  	return s.stack.Length()
+  }
+  
+  // Top 返回顶元素，也即返回链表的尾部
+  func (s *Lstack) Top() (interface{}, bool) {
+  	// 读之前要上锁
+  	s.lock.Lock()
+  	// 读完解锁
+  	defer s.lock.Unlock()
+  
+  	if s.stack.Length() > 0 {
+  		node, ok := s.stack.SearchByID(s.stack.Length())
+  		if ok {
+  			return node.Data, true
+  		}
+  	}
+  	return nil, false
+  }
+  
+  // Push 进栈操作
+  func (s *Lstack) Push(item interface{}) bool {
+  	// 写之前要上锁
+  	s.lock.Lock()
+  	// 写完解锁
+  	defer s.lock.Unlock()
+  	// 创建节点
+  	var node linklist.Node
+  	node.Data = item
+  	// 进栈之前先判断
+  	if s.cap == 0 || s.Height() < s.cap {
+  		// 无上限的栈或者未满，直接就入栈了（放在链表尾部）
+  		ok := s.stack.InsertIntoLinkList(&node, s.Height()+1)
+  		if ok {
+  			return true
+  		}
+  		return false
+  	}
+  	// 满了，放不下了
+  	return false
+  
+  }
+  
+  // Pop 出栈操作
+  func (s *Lstack) Pop() (interface{}, bool) {
+  	// 写之前要上锁
+  	s.lock.Lock()
+  	// 写完解锁
+  	defer s.lock.Unlock()
+  	if !s.IsEmpty() {
+  		// 栈非空，链表尾部节点删除（出栈）
+  		item, ok := s.stack.DeleteSP(s.Height())
+  		if ok {
+  			return item, true
+  		}
+  	}
+  	//栈为空，不可以执行出栈操作
+  	return nil, false
+  }
+  
+  ```
+
+  **main.go中的测试代码：**
+
+  ```go
+  	// 声明一个 stack.Lstack 的结构体变量
+  	var Ls stack.Lstack
+  	// 调用 stack 包下 InitStack 方法初始化一个栈
+  	Ls.InitStack(4)
+  
+  	fmt.Println(Ls)
+  	_ = Ls.Push(1)
+  	LsTop, _ := Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+  	_ = Ls.Push(2)
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	_ = Ls.Push(3)
+  	fmt.Println("此时栈为空吗？", Ls.IsEmpty())
+  	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	LsResult, _ := Ls.Pop()
+  	fmt.Println("栈的链表实现：弹出的元素是：", LsResult)
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：此时栈顶元素是：", LsTop)
+  	_, _ = Ls.Pop()
+  	_, _ = Ls.Pop()
+  	LsResult, _ = Ls.Pop()
+  	if LsResult == nil {
+  		fmt.Println("栈的链表实现：此时的栈已空，弹不出来元素了")
+  	} else {
+  		fmt.Println("栈的链表实现：弹出的元素是", LsResult)
+  	}
+  ```
+  
+  上面的代码获取栈顶元素的TOP函数有点小问题但是我就是找不到问题出在了哪里。
 
 #### 2.4.2 使用链表实现队列
 
@@ -782,9 +995,156 @@ main下的测试代码如下：
 
 - **2 注意事项**
 
-  
+  原始队列里面会有 front, rear  用于指示队首与队尾的位置，而现在可以不用了，单链表有 head 和 tail 。
 
 - **3 完整源码**
+
+  **queue/link_list_queue.go**
+
+  ```go
+  package queue
+  
+  // Linked list Queue
+  // 队列的链表实现(　TODO:　待完成链表之后再来完成这一块)
+  import (
+  	"datastructure/linklist"
+  	"sync"
+  )
+  
+  // Queue 这是简单队列的结构体
+  // 声明结构体变量之后需要执行 InitQueue 方法初始化队列
+  type Queue struct {
+  
+  	// 队列主体
+  	queue linklist.LinkList
+  
+  	// 队首队尾的指示可以不用了，单链表有 head 和 tail
+  	// front, rear int
+  
+  	// 队列的容量
+  	cap int
+  
+  	// 一个读写互斥锁：用于保护栈的数S据，防止读写的冲突操作
+  	lock sync.RWMutex
+  }
+  
+  // InitQueue 初始化队列
+  // 传入 int 类型的队列的长度
+  func (queue *Queue) InitQueue(cap int) bool {
+  
+  	if cap > 1 {
+  		queue.queue.InitLinkList()
+  		queue.cap = cap
+  		return true
+  	}
+  	// 传入的 cap <= 1 ，理论上这个队列是不可能存在的
+  	return false
+  }
+  
+  // OutQueue 出队操作
+  // 队列有值可以返回就返回出队的值和true
+  // 队列不满足出队条件就返回 nil 和 false
+  func (queue *Queue) OutQueue() (interface{}, bool) {
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	// 直接调用
+  	if queue.queue.Length() == 0 {
+  		return nil, false
+  	}
+  	return queue.queue.DeleteSP(1)
+  }
+  
+  // InQueue 入队操作
+  func (queue *Queue) InQueue(item interface{}) bool {
+  
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	// 入队之前要判断队是否满
+  	if queue.queue.Length() < queue.cap {
+  		var inNode linklist.Node
+  		inNode.Data = item
+  		// 入队并返回入队操作的结果
+  		return queue.queue.InsertIntoLinkList(&inNode, queue.queue.Length()+1)
+  	}
+  	return false
+  }
+  
+  // IsEmpty 判队空操作
+  func (queue *Queue) IsEmpty() bool {
+  	// 队首、尾指针一样的时候说明队列为空
+  	if queue.queue.Length() == 0 {
+  		return true
+  	}
+  	return false
+  }
+  
+  // TODO: 有毛病了，读不出来啊，因为在 linkList 里面，头是隐藏的信息
+  // 也可以改成导出类型，不过这就得不偿失了
+  // 倒是可以在 link_list 里再写一个函数用来导出指定位置的结点的元素：(其实可以是 func search(location int) interface{})
+  
+  // FrontQueue 读队头元素
+  // 队列非空即返回队头元素和 true
+  // 队列为空则返回 nil 和 false
+  func (queue *Queue) FrontQueue() (interface{}, bool) {
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	node, ok := queue.queue.SearchByID(1)
+  	if ok {
+  		return node.Data, ok
+  	}
+  	return nil, ok
+  
+  }
+  
+  // IsFull 判断队满操作
+  func (queue *Queue) IsFull() bool {
+  	if queue.cap == queue.queue.Length() {
+  		return true
+  	}
+  	return false
+  }
+  
+  ```
+
+  
+
+  **main.go中的测试代码：**
+
+  ```go
+  	// 声明一个 queue.Queue 的结构体变量
+  	var lQ queue.Queue
+  	// 调用 queue 包下的 InitQueue 方法初始化循环队列
+  	lQ.InitQueue(5)
+  
+  	fmt.Println(lQ)
+  	_ = lQ.InQueue(1)
+  	_ = lQ.InQueue(2)
+  	_ = lQ.InQueue(3)
+  	resultQ, _ = lQ.FrontQueue()
+  	fmt.Println("队列的链表实现：此时的队头元素是：", resultQ)
+  	_ = lQ.InQueue(4)
+  	for i := 0; i < 5; i++ {
+  		resultQ, ok := lQ.OutQueue()
+  		if ok {
+  			fmt.Printf("队列的链表实现：第 %d 次出队成功，出队元素 %v \n", i+1, resultQ)
+  		} else {
+  			fmt.Printf("队列的链表实现：第 %d 次出队失败\n", i)
+  		}
+  	}
+  }
+  ```
+
+  ### 3 注意：
+
+  以上涉及链表中结点删除的操作均未考虑内存释放的问题，默认就是交给 go 自己的垃圾回收机制管理了。如果要自己做内存释放的话可能要用CGO去做哦。
+
+  
 
 ## 4、树
 
