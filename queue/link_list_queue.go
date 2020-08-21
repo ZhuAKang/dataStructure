@@ -1,7 +1,7 @@
 package queue
 
 // Linked list Queue
-// 队列的链表实现(　TODO:　待完成链表之后再来完成这一块)
+// 队列的链表实现
 import (
 	"datastructure/linklist"
 	"sync"
@@ -20,7 +20,7 @@ type Queue struct {
 	// 队列的容量
 	cap int
 
-	// 一个读写互斥锁：用于保护栈的数S据，防止读写的冲突操作
+	// 一个读写互斥锁：用于保护队列的数据，防止读写的冲突操作
 	lock sync.RWMutex
 }
 
@@ -78,10 +78,6 @@ func (queue *Queue) IsEmpty() bool {
 	return false
 }
 
-// TODO: 有毛病了，读不出来啊，因为在 linkList 里面，头是隐藏的信息
-// 也可以改成导出类型，不过这就得不偿失了
-// 倒是可以在 link_list 里再写一个函数用来导出指定位置的结点的元素：(其实可以是 func search(location int) interface{})
-
 // FrontQueue 读队头元素
 // 队列非空即返回队头元素和 true
 // 队列为空则返回 nil 和 false
@@ -104,4 +100,9 @@ func (queue *Queue) IsFull() bool {
 		return true
 	}
 	return false
+}
+
+// Length 队长度:链表长度即为队的长度
+func (queue *Queue) Length() int {
+	return queue.queue.Length()
 }
