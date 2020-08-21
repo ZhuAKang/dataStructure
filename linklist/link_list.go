@@ -190,7 +190,7 @@ func (linkList *LinkList) DeleteSP(position int) (interface{}, bool) {
 // 查找成功则返回查找到的结点以及 true ，否则返回 nil 和 false
 func (linkList *LinkList) SearchByID(position int) (*Node, bool) {
 
-	if position < linkList.Length() && position > 0 {
+	if position <= linkList.Length() && position > 0 {
 		loNode := linkList.head
 		for i := 1; i < position; i++ {
 			loNode = loNode.Next
