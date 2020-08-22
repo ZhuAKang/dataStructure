@@ -5,6 +5,7 @@ import (
 	"datastructure/queue"
 	"datastructure/stack"
 	"fmt"
+	"reflect"
 )
 
 func main() {
@@ -86,5 +87,13 @@ func main() {
 	list.ShowList()
 	node, ok := list.SerachInLinkList(2)
 	fmt.Println("3在结点", node, ok)
+
+	var a interface{}
+	var b interface{}
+	a = 8
+	b = 8
+	fmt.Println("两个是否相等", reflect.ValueOf(a) == reflect.ValueOf(b))
+	// A := a.(reflect.ValueOf(a).Kind())
+	// B := b.(reflect.ValueOf(b).Kind())
 
 }
