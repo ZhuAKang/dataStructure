@@ -563,21 +563,268 @@ cities[1]["英国"] = "伦敦"
 
   在链表的指定位置插入结点。
 
+  <img src="img\单链表的插入.jpg" style="zoom:80%;" />
+
 - 删除函数
 
   删除指定位置的链表结点。
 
+  ![](img\单链表的删除.jpg)
+
 - 查找函数
 
-  查找指定结点在链表中的位置。
-
-- 
+  查找指定结点在链表中的位置。由于链表数据存取的不连续性，不能随机存取。所以在查找的时候只能顺序查找，时间复杂度在O(n)。
 
 #### 2.3.3 使用 Golang 链表
+
+​	**注：**在这里，我尝试去建立一个通用的单链表结构体并实现相关的查询、删除方法。但是在编写查找函数的时候遇见了很大的问题：想要这个结构体通用，则其接受的类型就设为了 interface ，但是两个**原始数据相等但是不相同**的 interface 类型如何比较是否是相等的？尝试使用reflect或者其他的一些办法没有解决比较值的这个问题，不能比较是否相等那就也不能在这个单链表上删除特定元素值的结点了。所以这一块卡住了，但是其他的函数：例如初始化、查询长度、插入函数。查找、删除这两个函数这一块的问题待以后解决吧。或者有大佬可以来给我指点一下。
+
+​	代码在 *linklist/link_list.go*
+
+```go
+package linklist
+
+import (
+
+	// "C"
+	"fmt"
+	"sync"
+)
+
+// Node 为链表节点的数据结构
+// 这里面 Next 和 Data 做导出
+// 只是为了下面在实现队列或栈的链表实现的时候可以直接用这里面的
+type Node struct {
+	// 指针域
+	Next *Node
+	// 数据域
+	Data interface{}
+}
+
+// LinkList 为链表的数据结构
+type LinkList struct {
+	// 链表的头节点
+	head *Node
+	// 链表的尾部
+	tail *Node
+	// 链表的长度
+	len int
+	// 一个读写互斥锁：用于保护数据，防止读写的冲突操作
+	lock sync.RWMutex
+}
+
+// TODO: 下面所有的函数有很大的问题没有考虑到链表的尾部
+// InitLinkList 初始化单链表
+func (linkList *LinkList) InitLinkList() {
+	var node Node
+	// 这一块必须是创建的 Node 实例而不是 *Node。这样的话后面报 nil pointer 错误
+	// 这一块是必须先创建结构体的变量实体，创建指针的话不指向指定结构体变量实体的话就是nil pointer错误
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+	linkList.head = &node
+	linkList.tail = &node
+	linkList.len = 0
+}
+
+// // InitCirclList 初始化循环链表
+// func InitCirclList() *Node {
+
+// 	return nil
+// }
+
+// Length 查询链表长度
+func (linkList *LinkList) Length() int {
+	return linkList.len
+}
+
+// SerachInLinkList 单链表上查询（只查离链表头最近的一个的前一个结点）
+// 传入一个 interface 类型的值，查询链上是否有此值
+// 有的话返回这个值所在结点的前一个结点的指针及 true ，否则返回 nil 和 false
+func (linkList *LinkList) SerachInLinkList(item interface{}) (*Node, bool) {
+	for i := 0; i < linkList.len; i++ {
+		currentNode := linkList.head
+		// 都是 interface 类型，比较值相等不能使用 “ == ” 了
+		// 可以使用 reflect 包下的 func DeepEqual(a1, a2 interface{}) bool
+		// TODO: 比较这一块有问题，使用上面的也不太行，可能要用反射包里的东西
+		// reflect.ValueOf(currentNode.Next.Data) == reflect.ValueOf(item)
+		if currentNode.Next != nil &&
+			currentNode.Next.Data == item {
+			return currentNode, true
+		}
+	}
+	return nil, false
+}
+
+// DeleteInLinkList 单链表上的删除（只删除离链表头最近的一个）
+// TODO: 删除的逻辑要注意，注意删除的是链表尾部
+func (linkList *LinkList) DeleteInLinkList(item interface{}) bool {
+	// 修改前要加锁
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+	beforeDeleteNode, _ := linkList.SerachInLinkList(item)
+	if beforeDeleteNode.Next != nil {
+		// 获取待删除结点指针
+		deleteNode := beforeDeleteNode.Next
+		// 从链上删除
+		beforeDeleteNode.Next = deleteNode.Next
+		// 删除的是链表尾
+		if deleteNode == linkList.tail {
+			linkList.tail = beforeDeleteNode
+		}
+
+		// TODO: 此处可能需要内存释放，考虑使用 cgo
+		linkList.len--
+		return true
+	}
+	return false
+
+}
+
+// InsertIntoLinkList 单链表上的插入操作
+// 参数: node 为待插入的节点；position 为节点插入的位置，从0开始
+// 返回值: true 表示插入成功，否则插入失败。失败可能是由于插入的位置不对
+// 插入位置，从 1 开始，0 位置放的是头结点
+func (linkList *LinkList) InsertIntoLinkList(node *Node, position int) bool {
+	// 修改前要加锁
+	linkList.lock.Lock()
+	defer linkList.lock.Unlock()
+
+	// 插入链表尾部
+	if position == linkList.Length()+1 {
+		linkList.tail.Next = node
+		// 链表尾部必须指向后面（重要）
+		linkList.tail = node
+		linkList.len++
+		return true
+	} else {
+		if position > 0 && position <= linkList.Length() {
+
+			beforInsertNode := linkList.head
+			// 找到待插入的前一个结点
+			for i := 1; i < position; i++ {
+				beforInsertNode = beforInsertNode.Next
+			}
+			// 断链插入
+			node.Next = beforInsertNode.Next
+			beforInsertNode.Next = node
+			linkList.len++
+			return true
+		}
+
+	}
+	return false
+}
+
+// ShowList 打印链表
+func (linkList *LinkList) ShowList() {
+	curNode := linkList.head
+	for i := 0; i < linkList.len; i++ {
+		curNode = curNode.Next
+		fmt.Println(curNode.Data)
+	}
+}
+
+```
+
+main下的测试代码如下：
+
+```go
+// 声明一个 linklist.LinkList 的结构体变量
+	var list linklist.LinkList
+	// 初始化链表
+	(&list).InitLinkList()
+	// 初始化 Node 结点
+	var node1 linklist.Node
+	node1.Data = 1
+	var node2 linklist.Node
+	node2.Data = 2
+	var node3 linklist.Node
+	node3.Data = 3
+	var node4 linklist.Node
+	node4.Data = 4
+	// 放入 list 内
+	list.InsertIntoLinkList(&node1, 1)
+	list.InsertIntoLinkList(&node3, 1)
+	list.InsertIntoLinkList(&node2, 1)
+	list.InsertIntoLinkList(&node4, 1)
+
+	// fmt.Println(&list)
+	// fmt.Println(unsafe.Sizeof(node1.Next))
+	// fmt.Println(unsafe.Sizeof(node1.Data))
+	// fmt.Println(unsafe.Sizeof(list))
+
+	list.ShowList()
+	node, ok := list.SerachInLinkList(2)
+	fmt.Println("3在结点", node, ok)
+```
 
 
 
 ### 2.4 栈与队列的链表实现
+
+因为上面的链表功能不够完善，部分函数存在问题，不能够满足栈和队列的实现需求，所以在上面链表的基础之上新增两个函数如下：
+
+```go
+// DeleteSP 删除从头结点开始的第 XX 个结点
+// 也即删除指定序号的结点
+// 删除成功返回删除的结点的值以及true；否则返回 nil 和 false
+func (linkList *LinkList) DeleteSP(position int) (interface{}, bool) {
+	// 要考虑好，删除的是链表上的第一个还是最后一个又或者是第一个和最后一个指向的是同一个结点
+	if position > 0 {
+		// 删除第一个且链表就一个元素
+		if position == 1 && linkList.Length() == 1 {
+			deleteNode := linkList.head.Next
+			linkList.tail = linkList.head
+			linkList.len--
+			return deleteNode.Data, true
+		} else if position == linkList.len {
+			// 删除最后一个
+			deleteNode := linkList.tail
+			beforeNode := linkList.head
+			// 找到最后一个结点的前一个结点
+			for i := 1; i < linkList.len; i++ {
+				beforeNode = beforeNode.Next
+			}
+			// 删除
+			linkList.tail = beforeNode
+			beforeNode.Next = nil
+			linkList.len--
+			return deleteNode.Data, true
+		} else {
+			// 删除这之间的结点
+			beforeDeleteNode := linkList.head
+			// deleteNode := linkList.head.Next
+			// 找到待删结点的前一个结点
+			for i := 1; i < position; i++ {
+				beforeDeleteNode = beforeDeleteNode.Next
+			}
+			// 删除
+			deleteNode := beforeDeleteNode.Next
+			beforeDeleteNode.Next = deleteNode.Next
+			linkList.len--
+			return deleteNode.Data, true
+		}
+
+	}
+	return nil, false
+}
+
+// SearchByID 根据位置查找结点
+// 查找成功则返回查找到的结点以及 true ，否则返回 nil 和 false
+func (linkList *LinkList) SearchByID(position int) (*Node, bool) {
+
+	if position <= linkList.Length() && position > 0 {
+		loNode := linkList.head
+		for i := 1; i < position; i++ {
+			loNode = loNode.Next
+		}
+		return loNode.Next, true
+	}
+	return nil, false
+}
+```
+
+
 
 #### 2.4.1 使用链表实现栈
 
@@ -587,9 +834,157 @@ cities[1]["英国"] = "伦敦"
 
 - **2 注意事项**
 
-  
+  栈的结构体中栈高度可以不需要了，链表的长度就是栈的高度。
 
 - **3 完整源码**
+
+  **stack/link_list_stack.go**
+
+  ```go
+  package stack
+  
+  import (
+  	"datastructure/linklist"
+  	"sync"
+  )
+  
+  // Lstack 这是链表实现的栈的数据结构
+  type Lstack struct {
+  	// 栈的主体结构：链表
+  	stack linklist.LinkList
+  
+  	// 一个读写互斥锁：用于保护栈的数S据，防止读写的冲突操作
+  	lock sync.RWMutex
+  
+  	// 一个栈容量：int 类型，如果是复数则默认是无上限的
+  	cap int
+  
+  	// 栈高度指针（就不用了，链表的长度就是栈的高度）
+  	// height uint
+  
+  }
+  
+  // InitStack 创建栈s
+  // 将此方法绑定到 Lstack 这个公开的栈的 struct 上面
+  // 传入一个参数 cap (整型) ，表示栈的容量：
+  //      传入 = 0 表示需要创建的栈的容量无上限、自增长
+  //      传入 > 0 的非 0 整数表示创建的栈容量有限
+  //      传入 < 0 的，参数错误，创建失败
+  func (s *Lstack) InitStack(cap int) bool {
+  	if cap >= 0 {
+  		s.stack.InitLinkList()
+  		s.cap = cap
+  		return true
+  	}
+  	return false
+  }
+  
+  // IsEmpty 判断栈是否为空，为空则返回true，否则返回false。
+  func (s *Lstack) IsEmpty() bool {
+  	if s.stack.Length() == 0 {
+  		return true
+  	}
+  	return false
+  }
+  
+  // Height 栈的高度
+  func (s *Lstack) Height() int {
+  	return s.stack.Length()
+  }
+  
+  // Top 返回顶元素，也即返回链表的尾部
+  func (s *Lstack) Top() (interface{}, bool) {
+  	// 读之前要上锁
+  	s.lock.Lock()
+  	// 读完解锁
+  	defer s.lock.Unlock()
+  
+  	if s.stack.Length() > 0 {
+  		node, ok := s.stack.SearchByID(s.stack.Length())
+  		if ok {
+  			return node.Data, true
+  		}
+  	}
+  	return nil, false
+  }
+  
+  // Push 进栈操作
+  func (s *Lstack) Push(item interface{}) bool {
+  	// 写之前要上锁
+  	s.lock.Lock()
+  	// 写完解锁
+  	defer s.lock.Unlock()
+  	// 创建节点
+  	var node linklist.Node
+  	node.Data = item
+  	// 进栈之前先判断
+  	if s.cap == 0 || s.Height() < s.cap {
+  		// 无上限的栈或者未满，直接就入栈了（放在链表尾部）
+  		ok := s.stack.InsertIntoLinkList(&node, s.Height()+1)
+  		if ok {
+  			return true
+  		}
+  		return false
+  	}
+  	// 满了，放不下了
+  	return false
+  
+  }
+  
+  // Pop 出栈操作
+  func (s *Lstack) Pop() (interface{}, bool) {
+  	// 写之前要上锁
+  	s.lock.Lock()
+  	// 写完解锁
+  	defer s.lock.Unlock()
+  	if !s.IsEmpty() {
+  		// 栈非空，链表尾部节点删除（出栈）
+  		item, ok := s.stack.DeleteSP(s.Height())
+  		if ok {
+  			return item, true
+  		}
+  	}
+  	//栈为空，不可以执行出栈操作
+  	return nil, false
+  }
+  
+  ```
+
+  **main.go中的测试代码：**
+
+  ```go
+  	// 声明一个 stack.Lstack 的结构体变量
+  	var Ls stack.Lstack
+  	// 调用 stack 包下 InitStack 方法初始化一个栈
+  	Ls.InitStack(4)
+  
+  	fmt.Println(Ls)
+  	_ = Ls.Push(1)
+  	LsTop, _ := Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+  	_ = Ls.Push(2)
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	_ = Ls.Push(3)
+  	fmt.Println("此时栈为空吗？", Ls.IsEmpty())
+  	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+  	LsResult, _ := Ls.Pop()
+  	fmt.Println("栈的链表实现：弹出的元素是：", LsResult)
+  	LsTop, _ = Ls.Top()
+  	fmt.Println("栈的链表实现：此时栈顶元素是：", LsTop)
+  	_, _ = Ls.Pop()
+  	_, _ = Ls.Pop()
+  	LsResult, _ = Ls.Pop()
+  	if LsResult == nil {
+  		fmt.Println("栈的链表实现：此时的栈已空，弹不出来元素了")
+  	} else {
+  		fmt.Println("栈的链表实现：弹出的元素是", LsResult)
+  	}
+  ```
+  
 
 #### 2.4.2 使用链表实现队列
 
@@ -599,15 +994,258 @@ cities[1]["英国"] = "伦敦"
 
 - **2 注意事项**
 
-  
+  原始队列里面会有 front, rear  用于指示队首与队尾的位置，而现在可以不用了，单链表有 head 和 tail 。
 
 - **3 完整源码**
 
+  **queue/link_list_queue.go**
+
+  ```go
+  package queue
+  
+  // Linked list Queue
+  // 队列的链表实现(　TODO:　待完成链表之后再来完成这一块)
+  import (
+  	"datastructure/linklist"
+  	"sync"
+  )
+  
+  // Queue 这是简单队列的结构体
+  // 声明结构体变量之后需要执行 InitQueue 方法初始化队列
+  type Queue struct {
+  
+  	// 队列主体
+  	queue linklist.LinkList
+  
+  	// 队首队尾的指示可以不用了，单链表有 head 和 tail
+  	// front, rear int
+  
+  	// 队列的容量
+  	cap int
+  
+  	// 一个读写互斥锁：用于保护栈的数S据，防止读写的冲突操作
+  	lock sync.RWMutex
+  }
+  
+  // InitQueue 初始化队列
+  // 传入 int 类型的队列的长度
+  func (queue *Queue) InitQueue(cap int) bool {
+  
+  	if cap > 1 {
+  		queue.queue.InitLinkList()
+  		queue.cap = cap
+  		return true
+  	}
+  	// 传入的 cap <= 1 ，理论上这个队列是不可能存在的
+  	return false
+  }
+  
+  // OutQueue 出队操作
+  // 队列有值可以返回就返回出队的值和true
+  // 队列不满足出队条件就返回 nil 和 false
+  func (queue *Queue) OutQueue() (interface{}, bool) {
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	// 直接调用
+  	if queue.queue.Length() == 0 {
+  		return nil, false
+  	}
+  	return queue.queue.DeleteSP(1)
+  }
+  
+  // InQueue 入队操作
+  func (queue *Queue) InQueue(item interface{}) bool {
+  
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	// 入队之前要判断队是否满
+  	if queue.queue.Length() < queue.cap {
+  		var inNode linklist.Node
+  		inNode.Data = item
+  		// 入队并返回入队操作的结果
+  		return queue.queue.InsertIntoLinkList(&inNode, queue.queue.Length()+1)
+  	}
+  	return false
+  }
+  
+  // IsEmpty 判队空操作
+  func (queue *Queue) IsEmpty() bool {
+  	// 队首、尾指针一样的时候说明队列为空
+  	if queue.queue.Length() == 0 {
+  		return true
+  	}
+  	return false
+  }
+  
+  // FrontQueue 读队头元素
+  // 队列非空即返回队头元素和 true
+  // 队列为空则返回 nil 和 false
+  func (queue *Queue) FrontQueue() (interface{}, bool) {
+  	// 读之前要上锁
+  	queue.lock.Lock()
+  	// 读完解锁
+  	defer queue.lock.Unlock()
+  	node, ok := queue.queue.SearchByID(1)
+  	if ok {
+  		return node.Data, ok
+  	}
+  	return nil, ok
+  
+  }
+  
+  // IsFull 判断队满操作
+  func (queue *Queue) IsFull() bool {
+  	if queue.cap == queue.queue.Length() {
+  		return true
+  	}
+  	return false
+  }
+  
+  ```
+  
+  
+  
+  **main.go中的测试代码：**
+
+  ```go
+	// 声明一个 queue.Queue 的结构体变量
+  	var lQ queue.Queue
+	// 调用 queue 包下的 InitQueue 方法初始化循环队列
+  	lQ.InitQueue(5)
+  
+  	fmt.Println(lQ)
+  	_ = lQ.InQueue(1)
+  	_ = lQ.InQueue(2)
+  	_ = lQ.InQueue(3)
+  	resultQ, _ = lQ.FrontQueue()
+  	fmt.Println("队列的链表实现：此时的队头元素是：", resultQ)
+  	_ = lQ.InQueue(4)
+  	for i := 0; i < 5; i++ {
+  		resultQ, ok := lQ.OutQueue()
+  		if ok {
+  			fmt.Printf("队列的链表实现：第 %d 次出队成功，出队元素 %v \n", i+1, resultQ)
+  		} else {
+  			fmt.Printf("队列的链表实现：第 %d 次出队失败\n", i)
+  		}
+  	}
+  }
+  ```
+  
+  ### 2.5 注意：
+  
+  以上涉及链表中结点删除的操作均未考虑内存释放的问题，默认就是交给 go 自己的垃圾回收机制管理了。如果要自己做内存释放的话可能要用CGO去做哦。
+
+  
+
 ## 4、树
+
+​	上一部分讲的顺序表和链表的实现都不够令人满意：不是检索速度快、就是易于插入新的节点，但是不能同时具有这两个优点。但是树却可以同时具有以上两个特性，且在其上的大部分操作的运行时间平均是 O(log N) 。
 
 ### 4.1 二叉树
 
+#### 4.1.1 二叉树的定义及特性
+
+一棵二叉树（binary tree）是由结点的有限集合组成的，这个集合或者为空或者由一个根节点（root）以及两棵不相交的二叉树组成，这两棵子树分别称为当前根节点的左子树（left subtree）与右子树（right subtree）。而这两棵子树的根节点有分别成为当前根节点的子节点。
+
+<img src="img/二叉树.jpg" style="zoom:50%;" />
+
+##### a) 完全二叉树
+
+从根节点开始，每一层从左向右填充。
+
+<img src="img/完全二叉树.jpg" style="zoom:50%;" />
+
+一棵深度为k的有n个结点的二叉树，对树中的结点按从上至下、从左到右的顺序进行编号，如果编号为i（1≤i≤n）的结点与满二叉树中编号为i的结点在二叉树中的位置相同，则这棵二叉树称为完全二叉树。
+
+一棵高度为 d 的完全二叉树除了 d - 1 层外，其他每一层都是满的。
+
+##### b) 满二叉树
+
+对于满二叉树国内外的定义是不一样的。这里我们按照国内的来吧。
+
+**国内定义：**一个二叉树，如果每一个层的结点数都达到最大值，则这个二叉树就是满二叉树。也就是说，如果一个二叉树的层数为K，且结点总数是(2^k) -1 ，则它就是满二叉树。
+
+![](img/国内满二叉树.png)
+
+**国外定义：**如果一棵二叉树的结点要么是叶子结点，要么它有两个子结点，这样的树就是满二叉树
+
+![](img/国外满二叉树.png)
+
+#### 4.1.2 二叉树的主要实现方法
+
+##### A）指针实现
+
+使用指针实现二叉树，每个结点存储两个字节的的指针和一个本结点的存储值。
+
+![](img/二叉树的指针实现.png)
+
+golang 实现的结构体如下：
+
+```go
+// TNode 树的结点结构体
+type TNode struct {
+	// 左孩子指针
+	left *TNode
+	// 右孩子指针
+	right *TNode
+	// 数据域
+	element int
+}
+
+// Tree 树的结构体
+type Tree struct {
+	// 根节点
+	root *TNode
+}
+```
+
+**注：**这里为了避免出现上面链表在查找时候的问题，即 interface 间值比较的问题，就简单一点，data 的类型取 int 得了。（如果之后可以解决这个问题，那以后再改）
+
+##### B）数组实现
+
+使用数组存储二叉树有利有弊，一般来说都是在数组中存入有规律易寻找的树类型，例如完全二叉树或满二叉树。
+
+假设在完全二叉树中，逐层而下、从左到右，结点的位置完全由其序号决定。则可以采用数组有效的存储二叉树的数据，把每一个数据存放在其结点对应序号的位置上。
+
+#### 4.1.3 二叉树的遍历、查找等相关函数
+
+#### 4.1.4 不同类型二叉树的判别
+
+##### A）完全二叉树
+
+**算法思路：**
+
+判断一棵树是否是完全二叉树的思路 ：
+
+​		1>如果树为空，则直接返回错
+　　2>如果树不为空：层序遍历二叉树
+　　2.1>如果一个结点左右孩子都不为空，则pop该节点，将其左右孩子入队列；
+　　2.1>如果遇到一个结点，左孩子为空，右孩子不为空，则该树一定不是完全二叉树；
+　　2.2>如果遇到一个结点，左孩子不为空，右孩子为空；或者左右孩子都为空；则该节点之后的队列中的结点都为叶子节点；该树才是完全二叉树，否则就不是完全二叉树；
+
+**代码实现：**
+
+
+
+##### B）满二叉树
+
+#### 4.1.5 二叉树的特殊应用
+
+
+
 ### 4.2 树
+
+#### 4.2.1 树的定义与特性
+
+#### 4.2.1 树的实现
+
+#### 4.2.1 K 叉树
+
+#### 4.2.1 树的顺序表示法
 
 ## 5、优先级队列
 

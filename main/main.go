@@ -23,7 +23,7 @@ func main() {
 	top, _ = s.Top()
 	fmt.Println("栈顶元素是：", top)
 	_ = s.Push(3)
-	fmt.Println(s.IsEmpty())
+	fmt.Println("此时栈为空吗？", s.IsEmpty())
 	top, _ = s.Top()
 	fmt.Println("栈顶元素是：", top)
 	result, _ := s.Pop()
@@ -84,9 +84,61 @@ func main() {
 	// fmt.Println(unsafe.Sizeof(node1.Data))
 	// fmt.Println(unsafe.Sizeof(list))
 
-	list.ShowList()
-	node, ok := list.SerachInLinkList(2)
-	fmt.Println("3在结点", node, ok)
+	// list.ShowList()
+	// node, ok := list.SerachByValue(2)
+	// fmt.Println("3在结点", node, ok)
+
+	// 声明一个 queue.Queue 的结构体变量
+	var lQ queue.Queue
+	// 调用 queue 包下的 InitQueue 方法初始化循环队列
+	lQ.InitQueue(5)
+
+	fmt.Println(lQ)
+	_ = lQ.InQueue(1)
+	_ = lQ.InQueue(2)
+	_ = lQ.InQueue(3)
+	resultQ, _ = lQ.FrontQueue()
+	fmt.Println("队列的链表实现：此时的队头元素是：", resultQ)
+	_ = lQ.InQueue(4)
+	for i := 0; i < 5; i++ {
+		resultQ, ok := lQ.OutQueue()
+		if ok {
+			fmt.Printf("队列的链表实现：第 %d 次出队成功，出队元素 %v \n", i+1, resultQ)
+		} else {
+			fmt.Printf("队列的链表实现：第 %d 次出队失败\n", i)
+		}
+	}
+
+	// 声明一个 stack.Lstack 的结构体变量
+	var Ls stack.Lstack
+	// 调用 stack 包下 InitStack 方法初始化一个栈
+	Ls.InitStack(4)
+
+	fmt.Println(Ls)
+	_ = Ls.Push(1)
+	LsTop, _ := Ls.Top()
+	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+	_ = Ls.Push(2)
+	LsTop, _ = Ls.Top()
+	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+	_ = Ls.Push(3)
+	fmt.Println("此时栈为空吗？", Ls.IsEmpty())
+	fmt.Println("栈的链表实现：栈高度是：", Ls.Height())
+	LsTop, _ = Ls.Top()
+	fmt.Println("栈的链表实现：栈顶元素是：", LsTop)
+	LsResult, _ := Ls.Pop()
+	fmt.Println("栈的链表实现：弹出的元素是：", LsResult)
+	LsTop, _ = Ls.Top()
+	fmt.Println("栈的链表实现：此时栈顶元素是：", LsTop)
+	_, _ = Ls.Pop()
+	_, _ = Ls.Pop()
+	LsResult, _ = Ls.Pop()
+	if LsResult == nil {
+		fmt.Println("栈的链表实现：此时的栈已空，弹不出来元素了")
+	} else {
+		fmt.Println("栈的链表实现：弹出的元素是", LsResult)
+	}
 
 	var a interface{}
 	var b interface{}
