@@ -1180,7 +1180,8 @@ func (linkList *LinkList) SearchByID(position int) (*Node, bool) {
 ##### A）指针实现
 
 使用指针实现二叉树，每个结点存储两个字节的的指针和一个本结点的存储值。
-
+<img src="img/树的节点构造图.PNG" style="zoom:40%;" />
+下面是一棵树的演示：
 ![](img/二叉树的指针实现.png)
 
 golang 实现的结构体如下：

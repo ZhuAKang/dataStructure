@@ -45,7 +45,8 @@ func (node *TNode) SetElement(element int) {
 	node.element = element
 }
 
-// GetDepth 返回树的深度（高度）
+// GetDepth 返回树的深度（高度）采用后序遍历遍历思想
+// TODO: 还有递归的方法，待定
 func (tree *BTree) GetDepth() int {
 	// 使用栈来完成，这一块的栈就可以用我们之前写的了
 	var stack stack.Lstack
@@ -57,33 +58,42 @@ func (tree *BTree) GetDepth() int {
 	// 树的根节点入栈，作为栈底元素
 	stack.Push(tree.root)
 
+	// TODO: 逻辑有点问题，可能要有一个访问标志位，来判断左边的结点是否已经被访问了
+	// 左右孩子访问标志位，指向刚刚出栈的那个节点
+	var accessed *TNode
+
 	for {
-		// 获取栈顶元素，看看有没有左孩子，有就入栈（判断：更新高度），然后继续下一层循环
-		// 如果没有左孩子，看看有没有右孩子，有就入栈（判断：更新高度），然后继续下一层循环
-		// 如果左右都没有孩子，弹出栈顶元素，然后继续循环
 
 		current, ok := stack.Top()
 
-		// TODO: 逻辑有点问题，可能要有一个访问标志位，来判断左边的结点是否已经被访问了
 		// 栈内仍有元素，栈顶仍然可以取
 		if ok {
 			// 类型断言，转换成 TNode 型
 			currentNode, ok := current.(TNode)
 			if ok {
 				// 类型转换成功，可以下一步判断了
-				// 左孩子存在，入栈
-				if currentNode.left != nil {
+				// 左孩子存在且左右孩子均未被访问过，入栈（左孩子未被访问入栈可以理解，右孩子没被访问主要是后序遍历思想，先左后右最后中间，
+				// 当刚刚出栈的节点是当前栈顶的右孩子的时候，说明左孩子已经访问过了，不需要再访问了）
+				if currentNode.left != nil && accessed != currentNode.left && accessed != currentNode.right {
 					stack.Push(currentNode.left)
 					// 判断高度，现在高的话高度就增加
+					if maxDepth > stack.Height() {
+						maxDepth = stack.Height()
+					}
 					continue
-
-					// 右孩子存在，入栈
-				} else if currentNode.right != nil {
+				} else if currentNode.right != nil && accessed != currentNode.right {
+					// 右孩子存在且未被访问，入栈
 					stack.Push(currentNode.right)
+					// 判断高度，现在高的话高度就增加
+					if maxDepth > stack.Height() {
+						maxDepth = stack.Height()
+					}
 					continue
 				} else {
 					// 左右都不存在，弹出当前栈顶并重来循环
 					_, _ = stack.Pop()
+					// 标记当前出栈的节点
+					accessed = &currentNode
 					continue
 				}
 			}
