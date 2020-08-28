@@ -1147,6 +1147,8 @@ func (linkList *LinkList) SearchByID(position int) (*Node, bool) {
 
 ### 4.1 二叉树
 
+**以下的代码均在 tree 包下。**
+
 #### 4.1.1 二叉树的定义及特性
 
 一棵二叉树（binary tree）是由结点的有限集合组成的，这个集合或者为空或者由一个根节点（root）以及两棵不相交的二叉树组成，这两棵子树分别称为当前根节点的左子树（left subtree）与右子树（right subtree）。而这两棵子树的根节点有分别成为当前根节点的子节点。
@@ -1212,7 +1214,438 @@ type Tree struct {
 
 假设在完全二叉树中，逐层而下、从左到右，结点的位置完全由其序号决定。则可以采用数组有效的存储二叉树的数据，把每一个数据存放在其结点对应序号的位置上。
 
+![二叉树的数组表示](img\二叉树的数组表示.png)
+
+如上面的数组所示，如果数组存储的是完全二叉树（按照宽度优先遍历存储），则其对应的树形就应该是：
+
+<img src="img\数组所代表的二叉树.png" alt="数组所代表的二叉树" style="zoom:80%;" />
+
+如果上面数组存储的的二叉树是按照先序、后序、中序遍历的结点顺序存储的，则代表的可能是不同的二叉树树形。这个后面会讲。
+
 #### 4.1.3 二叉树的遍历、查找等相关函数
+
+##### 4.1.3.1 先序遍历
+
+即在遍历树的时候，先输出根节点，在依序输出左右子树。首先访问根结点然后遍历左子树，最后遍历右子树。在遍历左、右子树时，仍然先访问根结点，然后遍历左子树，最后遍历右子树，如果二叉树为空则返回。
+
+以上面的数组对应的二叉树为例，先序遍历的输出结果应该是：124895367
+
+先序遍历的实现可以采用循环法也可以采用递归法：
+
+1. **循环实现：**
+
+   ```go
+   // PreOrderByCircle 先序遍历的循环实现
+   func (tree *BTree) PreOrderByCircle() {
+   	// 声明一个栈，树根入栈，然后开始循环（条件：栈非空）
+   	// 弹出栈顶元素，进行操作，然后将右孩子与左孩子依次入栈（如果右或者左存在的话）
+   
+   	var stack stack.Lstack
+   	stack.InitStack(0)
+   
+   	// 树根入栈
+   	stack.Push(tree.root)
+   	for !stack.IsEmpty() {
+   		// 出栈并进行相应操作
+   		topNode, _ := stack.Pop()
+   		node := topNode.(*TNode)
+   		fmt.Print(node.element)
+   		// 右孩子存在的话入栈
+   		if node.right != nil {
+   			stack.Push(node.right)
+   		}
+   		// 左孩子存在的话入栈
+   		if node.left != nil {
+   			stack.Push(node.left)
+   		}
+   	}
+   	return
+   }
+   ```
+
+   
+
+2. **递归实现**
+
+   ```go
+   // PreOrderByRec 先序遍历的递归实现的入口函数
+   func (tree *BTree) PreOrderByRec() {
+   	preOrderByRecursion(tree.root)
+   }
+   
+   // preOrderByRecursion 先序遍历的递归实现
+   func preOrderByRecursion(node *TNode) {
+   	if node != nil {
+   		// 先触发当前结点操作
+   		fmt.Print(node.element)
+   		// 再转向操作左右子树
+   		preOrderByRecursion(node.left)
+   		preOrderByRecursion(node.right)
+   	}
+   
+   }
+   ```
+
+   
+
+##### 4.1.3.2 中序遍历
+
+中序遍历首先遍历左子树，然后访问根结点，最后遍历右子树。若二叉树为空则结束返回，否则继续先遍历左子树......
+
+以上面的数组对应的二叉树为例，中序遍历的输出结果应该是：849251637
+
+先序遍历的实现可以采用循环法也可以采用递归法：
+
+1. **循环实现：**
+
+   ```go
+   // InOrderByCircle 中序遍历的循环实现
+   func (tree *BTree) InOrderByCircle() {
+   	var stack stack.Lstack
+   	stack.InitStack(0)
+   
+   	// TODO: 要设置一个访问标志位，看看出栈的那个结点是从左边回来的还是从右边回来的
+   	var beforeNode *TNode
+   	// 指示访问的当前位置
+   	p := tree.root
+   
+   	stack.Push(tree.root)
+   
+   	for !stack.IsEmpty() {
+   
+   		// 左孩子存在就入栈
+   		if p.left != nil && p.left != beforeNode {
+   			stack.Push(p.left)
+   			p = p.left
+   		} else {
+   			// 没有左孩子，出栈并执行相关操作
+   			// 先保存之前出栈的结点
+   			beforeNode = p
+   			// 栈顶出栈并执行相关操作
+   			topNode, _ := stack.Pop()
+   			p = topNode.(*TNode)
+   			fmt.Print(p.element)
+   			if p.right != nil {
+   				p = p.right
+   				stack.Push(p)
+   			}
+   
+   		}
+   
+   	}
+   }
+   
+   ```
+
+   
+
+2. **递归实现**
+
+   ```go
+   // InOrderByRec 中序遍历的递归实现的入口函数
+   func (tree *BTree) InOrderByRec() {
+   	inOrderByRecursion(tree.root)
+   }
+   
+   // inOrderByRecursion 中序遍历的递归实现
+   func inOrderByRecursion(node *TNode) {
+   	if node != nil {
+   		// 先转向操作左子树
+   		inOrderByRecursion(node.left)
+   		// 再触发当前结点操作
+   		fmt.Print(node.element)
+   		// 再转向操作左子树
+   		inOrderByRecursion(node.right)
+   	}
+   }
+   
+   ```
+
+   
+
+##### 4.1.3.3 后序遍历
+
+后序遍历首先遍历左子树，然后遍历右子树，最后访问根结点，在遍历左、右子树时，仍然先遍历左子树，然后遍历右子树，最后遍历根结点。
+
+以上面的数组对应的二叉树为例，后序遍历的输出结果应该是：894526731
+
+先序遍历的实现可以采用循环法也可以采用递归法：
+
+1. **循环实现：**
+
+   ```go
+   // PostOrderByCircle 后序遍历的循环实现
+   func (tree *BTree) PostOrderByCircle() {
+   	// 声明个栈，用来存结点
+   	var stack stack.Lstack
+   	stack.InitStack(0)
+   	// 访问标识，看看刚刚出栈的结点是不是栈顶的孩子
+   	var beforeNode *TNode
+   
+   	// 根节点先入栈
+   	stack.Push(tree.root)
+   	for !stack.IsEmpty() {
+   		// 获取栈顶元素，有左或右孩子，则左右孩子入栈，其中右孩子先入栈
+   		topNode, _ := stack.Top()
+   		node := topNode.(*TNode)
+   		// 当前栈顶结点的左孩子存在且刚刚出栈的结点不是此节点的左右孩子，证明左孩子未被访问过
+   		if node.left != nil && beforeNode != node.right && beforeNode != node.left {
+   			stack.Push(node.left)
+   		} else if node.right != nil && beforeNode != node.right {
+   			// 栈顶结点的右孩子存在且刚刚出栈的结点不是这个结点的右孩子，就证明当前栈顶结点的右孩子还未被访问过
+   			stack.Push(node.right)
+   		} else {
+   			// 左右孩子均不存在或者左右孩子以及都被访问过了
+   			curNode, _ := stack.Pop()
+   			node = curNode.(*TNode)
+   			beforeNode = node
+   			fmt.Print(node.element)
+   		}
+   	}
+   }
+   ```
+
+   
+
+2. **递归实现**
+
+   ```go
+   // PostOrderByRec 后序遍历的递归实现的入口函数
+   func (tree *BTree) PostOrderByRec() {
+   	postOrderByRecursion(tree.root)
+   }
+   
+   // postOrderByRecursion 后序遍历的递归实现
+   func postOrderByRecursion(node *TNode) {
+   	if node != nil {
+   		// 先转向操作左右子树
+   		postOrderByRecursion(node.left)
+   		postOrderByRecursion(node.right)
+   		// 再触发当前结点操作
+   		fmt.Print(node.element)
+   	}
+   }
+   
+   ```
+
+##### 4.1.3.4 层序遍历
+
+层序遍历即按照树的结构，每一层的去遍历节点。以上面的数组对应的二叉树为例，后序遍历的输出结果应该是：123456789
+
+```go
+// LayerOrder 层序遍历的循环实现（好像没有递归的）
+func (tree *BTree) LayerOrder() {
+	// 声明一个队列，这里使用的是之前写的使用链表实现的队列
+	var queue queue.Queue
+	// 初始化队列长度，因为是链表实现的队列，且队里只存这一层加上少部分上一层的节点，所以不用设太大
+	queue.InitQueue(7)
+
+	queue.InQueue(tree.root)
+	// 队列非空的时候一直循环
+	for !queue.IsEmpty() {
+		// 队头元素出队
+		out, _ := queue.OutQueue()
+		node := out.(*TNode)
+		fmt.Print(node.element)
+		if node.left != nil {
+			queue.InQueue(node.left)
+		}
+		if node.right != nil {
+			queue.InQueue(node.right)
+		}
+	}
+
+}
+```
+
+
+
+##### 4.1.3.5 树高
+
+采用后序遍历的思想，树的高度可以将节点依次入栈、出栈，栈的最大高度作为树的高度。
+
+golang 代码如下（**ltree.go**）：
+
+```go
+// GetDepth 返回树的深度（高度）
+// TODO: 还有递归的方法，待定
+func (tree *BTree) GetDepth() int {
+	// 使用栈来完成，这一块的栈就可以用我们之前写的了
+	var stack stack.Lstack
+	// 初始化栈，栈容量自增长
+	stack.InitStack(0)
+	// 树的深度，初始化为栈的初始高度 0
+	maxDepth := stack.Height()
+
+	// 树的根节点入栈，作为栈底元素
+	stack.Push(tree.root)
+
+	// 左右孩子访问标志位，指向刚刚出栈的那个节点
+	var accessed *TNode
+
+	for {
+
+		current, ok := stack.Top()
+
+		// 栈内仍有元素，栈顶仍然可以取
+		if ok {
+			// 类型断言，转换成 *TNode 型
+			currentNode, ok := current.(*TNode)
+			if ok {
+				// 类型转换成功，可以下一步判断了
+				// 左孩子存在且左右孩子均未被访问过，入栈（左孩子未被访问入栈可以理解，右孩子没被访问主要是后序遍历思想，先左后右最后中间，
+				// 当刚刚出栈的节点是当前栈顶的右孩子的时候，说明左孩子已经访问过了，不需要再访问了）
+				if currentNode.left != nil && accessed != currentNode.left && accessed != currentNode.right {
+					stack.Push(currentNode.left)
+					// 判断高度，现在高的话高度就增加
+					if maxDepth < stack.Height() {
+						maxDepth = stack.Height()
+					}
+					continue
+				} else if currentNode.right != nil && accessed != currentNode.right {
+					// 右孩子存在且未被访问，入栈
+					stack.Push(currentNode.right)
+					// 判断高度，现在高的话高度就增加
+					if maxDepth < stack.Height() {
+						maxDepth = stack.Height()
+					}
+					continue
+				} else {
+					// 左右都不存在，弹出当前栈顶并重来循环
+					_, _ = stack.Pop()
+					// 标记当前出栈的节点
+					accessed = currentNode
+					continue
+				}
+			}
+		}
+		// 循环退出条件：栈内空了或者上面栈的 Top 没有元素了，又或者类型转换失败了（栈内存的不是*TNode 类型）
+		if stack.IsEmpty() || !ok {
+			break
+		}
+	}
+	// 左右结点都访问过了就弹出
+	return maxDepth
+}
+
+```
+
+tree_test.go 中的测试代码：
+
+```go
+func TestGetDepth(t *testing.T) {
+	// 这是树的入口
+	var btree BTree
+	/*
+		 		1
+			  /   \
+			 2     3
+			/ \   / \
+		   4   5 6   7
+			  /
+			 8
+	*/
+	var node1, node2, node3, node4, node5, node6, node7, node8 TNode
+	node1.SetElement(1)
+	node2.SetElement(2)
+	node3.SetElement(3)
+	node4.SetElement(4)
+	node5.SetElement(5)
+	node6.SetElement(6)
+	node7.SetElement(7)
+	node8.SetElement(8)
+	node1.SetLeft(&node2)
+	node1.SetRight(&node3)
+	node2.SetLeft(&node4)
+	node2.SetRight(&node5)
+	node3.SetLeft(&node6)
+	node3.SetRight(&node7)
+	node5.SetLeft(&node8)
+
+	btree.InitTree(&node1)
+
+	fmt.Println("树的高度是", btree.GetDepth())
+}
+```
+
+同样也可以采用递归来做，代码如下：
+
+```go
+// GetDepthRec 二叉树的高度的递归实现的入口函数
+func (tree *BTree) GetDepthRec() int {
+	return GetDepthByRecursion(tree.root)
+}
+
+// GetDepthByRecursion 二叉树的高度的递归实现
+func GetDepthByRecursion(node *TNode) int {
+	if node != nil {
+		left := GetDepthByRecursion(node.left)
+		right := GetDepthByRecursion(node.right)
+		if left < right {
+			return right + 1
+		}
+		return left + 1
+	}
+	return 0
+}
+```
+
+
+
+##### 4.1.3.6 树宽
+
+树宽需要使用到层序遍历的思想，每层元素数的最大值就是树宽，以上面的数结构为例，树宽为：4。
+
+```go
+// GetWidth 二叉树的宽度
+func (tree *BTree) GetWidth() int {
+	if tree.root == nil {
+		return 0
+	}
+	// 声明一个队列，这里使用的是之前写的使用链表实现的队列
+	var queue queue.Queue
+	// 初始化队列长度，因为是链表实现的队列，且队里只存这一层加上少部分上一层的节点，所以不用设太大
+	queue.InitQueue(12)
+
+	queue.InQueue(tree.root)
+	// count 每层节点数，width 宽度
+	count := 1
+	width := 1
+	// 队列非空
+	for !queue.IsEmpty() {
+		// 临时保存下一层的节点数
+		var size = 0
+		for i := 0; i < count; i++ {
+			// 出栈
+			curNode, _ := queue.OutQueue()
+			node := curNode.(*TNode)
+			if node.left != nil {
+				queue.InQueue(node.left)
+				size++
+			}
+			if node.right != nil {
+				queue.InQueue(node.right)
+				size++
+			}
+		}
+		// 下一层没有节点了，退出
+		if size == 0 {
+			break
+		}
+		if size > width {
+			width = size
+		}
+		// 重新开始下一层了
+		count = size
+	}
+	return width
+}
+
+```
+
+
+
+**注：以上所有代码均在 ltree.go 文件内，测试代码在 tree_test.go**，**在进行所有二叉树的操作之前，最好首先对是否是空树进行判断，否则就可能在空指针上面兜圈子，很烦！！！**我这上面的文档在做的时候没有考虑到这一块，不过已经在代码中更新了，可以看 ltree.go 文件。
 
 #### 4.1.4 不同类型二叉树的判别
 
@@ -1230,13 +1663,290 @@ type Tree struct {
 
 **代码实现：**
 
+```go
+// IsCompleteBTree 判断当前二叉树是否为完全二叉树(使用层序遍历思想)
+func (tree *BTree) IsCompleteBTree() bool {
+	// 树为空则直接退出
+	if tree.root == nil {
+		return false
+	}
+	// 声明队列并进行初始化
+	var queue queue.Queue
+	queue.InitQueue(12)
+
+	// 根节点入队
+	queue.InQueue(tree.root)
+
+	// 开始循环判断(只要队列非空，就一直循环下去直到队列为空或者触发退出机制)
+	for !queue.IsEmpty() {
+		curNode, _ := queue.OutQueue()
+		node := curNode.(*TNode)
+		// 左右孩子节点都存在
+		if node.left != nil && node.right != nil {
+			queue.InQueue(node.left)
+			queue.InQueue(node.right)
+		} else if node.left == nil && node.right != nil {
+			// 左孩子为空右孩子不为空，则不是完全二叉树
+			return false
+		} else {
+			// 左右孩子都为空或者左孩子为空右孩子不为空，
+			// 则队列中这个节点之后的所有节点都是叶子节点，才能使得这棵树是完全二叉树
+			for !queue.IsEmpty() {
+				curNode, _ = queue.OutQueue()
+				node := curNode.(*TNode)
+				if node.left != nil || node.right != nil {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+```
+
 
 
 ##### B）满二叉树
 
+判断是不是满二叉树（国内的定义）只要看 ：2^(树高) - 1 == 节点个数  是否成立，成立就是满二叉树，否则就不是。这是满二叉树判定的充要条件。
+
+**代码实现：**
+
+```go
+// IsFullBTree 判断当前二叉树是否为满二叉树(国内定义的满二叉树)
+// 得到树高和节点的个数，判断是否满足：2^(树高) - 1 = 节点个数
+func (tree *BTree) IsFullBTree() bool {
+	if tree.root == nil {
+		return true
+	}
+	// 如果2^(树高) - 1 != 节点个数，则不是满二叉树
+	if math.Pow(2, float64(tree.GetDepth()))-1 != float64(tree.GetTreeNodeNumber()) {
+		return false
+	}
+	return true
+}
+
+// GetTreeNodeNumber 遍历计算树上的节点总数(使用层序)
+func (tree *BTree) GetTreeNodeNumber() int {
+	if tree.root == nil {
+		return 0
+	}
+	var count int
+	// 声明队列并进行初始化
+	var queue queue.Queue
+	queue.InitQueue(12)
+
+	// 根节点入队
+	queue.InQueue(tree.root)
+	count++
+	for !queue.IsEmpty() {
+		curNode, _ := queue.OutQueue()
+		node := curNode.(*TNode)
+		if node.left != nil {
+			queue.InQueue(node.left)
+			count++
+		}
+		if node.right != nil {
+			queue.InQueue(node.right)
+			count++
+		}
+	}
+	return count
+}
+```
+
+
+
 #### 4.1.5 二叉树的特殊应用
 
+##### 4.1.5.1 查找树ADT-----二叉查找树
 
+二叉查找树（二叉搜索树）是二叉树的一个十分重要的应用。二叉查找树的性质：对于树上的 每一个节点 X ，他的左子树中所有关键字的值小于 X 的关键字值，而他的右子树中所有关键字的值大于 X 的关键字值。例如：
+
+<img src="img\二叉查找树.png" alt="二叉查找树" style="zoom:80%;" />
+
+一般来说，二叉查找树的平均深度是O(log N)，且二叉查找树的节点元素排列是有规律的，所以一般的查找的复杂度和树的高度相等都是O(log N)。这里为了简单起见我假设节点中的关键字都是整数，这样方便操作。其实后期如果有复杂的业务需求，节点的关键字值可以是其他的，然后自己写一个比较函数比较自己存的关键字值就行了。
+
+二叉查找树上的操作大致分为以下三类：
+
+1. 查找
+
+   因为二叉查找树满足左小右大的规律，所以在上面查找的时候，首先待查找元素值和根节点的元素值进行比较，相等就返回根节点，大于根节点则向右走在右子树上重复同样的操作，小于根节点则向左子树走。。。如果查到了某个节点该向左孩子（或者右孩子）继续查的时候，该节点的左孩子（或者右孩子）为空，不存在，即为查失败。
+
+   ```go
+   // Search 二叉搜索树的查找函数
+   // 查到了返回该节点指针，没查到返回 nil
+   func Search(tree *BTree, value int) *TNode {
+   	if tree.root == nil {
+   		return nil
+   	}
+   	// 非递归查找
+   	// 指示访问节点
+   	p := tree.root
+   	for p != nil {
+   		if p.element > value {
+   			p = p.left
+   		} else if p.element < value {
+   			p = p.right
+   		} else {
+   			return p
+   		}
+   	}
+   	// 没查到
+   	return nil
+   }
+   
+   ```
+
+   
+
+2. 插入
+
+   插入可以按照查找时候的思路，先查找树上是否已经存在待插入元素，如果已经存在就不插入，如果不存在的话就插入到访问到的最后一个节点上。
+
+   ```go
+   // Insert 向一棵二叉搜索树中插入一个值
+   func Insert(tree *BTree, value int) bool {
+   	if tree.root == nil {
+   		return false
+   	}
+   
+   	// 指示访问节点
+   	p := tree.root
+   	// 指示要插入的那个节点
+   	var beforeNode *TNode
+   	for p != nil {
+   		if p.element > value {
+   			beforeNode = p
+   			p = p.left
+   		} else if p.element < value {
+   			beforeNode = p
+   			p = p.right
+   		} else {
+   			// 树上已经有元素了
+   			return false
+   		}
+   	}
+   	// 构造节点
+   	var node TNode
+   	node.SetElement(value)
+   	if value > beforeNode.element {
+   		// 插在右边
+   		beforeNode.SetRight(&node)
+   	} else {
+   		// 插在左边
+   		beforeNode.SetLeft(&node)
+   	}
+   	return true
+   }
+   ```
+
+   
+
+3. 删除
+
+   删除可以分为三种情况：
+
+   - 待删除结点时一个叶子节点，可以直接删除。
+
+   - 待删除结点只有一个孩子结点，即左右子树存在且只存在一个的时候，可以在父节点调整指针绕过该节点进行删除。
+
+   - 如果该节点具有两个孩子，一般的策略是使用该节点右子树上的最小的数据来替代该节点的数据，并且递归地删除右子树上刚刚查到的最小数据节点。
+
+     ```go
+     // Delete 在二叉搜索树中删除一个元素 （入口函数）
+     // 删除成功返回 true ，失败（节点元素不存在或者其他因素）返回 false
+     func Delete(tree *BTree, value int) bool {
+     	if tree.root == nil {
+     		return false
+     	}
+     	// 查找有咩有这个元素
+     	delNode := Search(tree, value)
+     	// 没有返回 false
+     	if delNode == nil {
+     		return false
+     	}
+     	// 树上存在此节点，删除
+     	_ = deleteNode(tree.root, value)
+     	return true
+     }
+     
+     // deleteNode这是删除的递归函数
+     func deleteNode(node *TNode, value int) *TNode {
+     	if node == nil {
+     		return nil
+     	} else if value < node.element {
+     		// 向左，递归
+     		node.left = deleteNode(node.left, value)
+     	} else if value > node.element {
+     		// 向右，递归
+     		node.right = deleteNode(node.right, value)
+     		// 从这儿往下说明找到了删除的元素
+     	} else if node.left != nil && node.right != nil {
+     		// 左右孩子都存在
+     		// 使用右侧最小的替代
+     		temp := FindMin(node.right)
+     		node.SetElement(temp.element)
+     		node.right = deleteNode(node.right, temp.element)
+     	} else {
+     		// 就一个或者零个孩子
+     		// 一般来说，需要一个指示位指示待删除结点，然后后期释放掉该资源（下面1、2两步）
+     		//1、 temp := node
+     		if node.left == nil {
+     			// 左侧没有孩子
+     			// 直接放入右孩子
+     			node = node.right
+     			//2、 free(temp)
+     		} else if node.right == nil {
+     			// 右侧没孩子
+     			// 直接放左侧的孩子
+     			node = node.left
+     			//2、 free(temp)
+     		}
+     	}
+     	return node
+     }
+     
+     // FindMin 查找子树最小的元素
+     func FindMin(node *TNode) *TNode {
+     	if node == nil {
+     		return nil
+     	}
+     	for node.left != nil {
+     		node = node.left
+     	}
+     	return node
+     }
+     
+     ```
+
+     **注意：以上代码在 tree/bstree.go 文件内，测试代码仍在 tree/tree_test.go 文件内，测试函数的名称是 TestBSTree**
+
+##### 4.1.5.2 表达式树
+
+表达式树的树叶是操作数，比如说是常量或者变量，其他节点为操作符。这里由于所有的操作都是二元的，因此这棵树恰好为表达式树。
+
+<img src="img\表达式树案例.png" alt="表达式树案例" style="zoom:50%;" />
+
+如上图，这是表达式<img src="img\公式1.png" alt="公式1" style="zoom:50%;" />的表达式树。我们可以通过递归地计算左子树与右子树在根处的值来得到表达式树的值。
+
+表达式树的中序遍历的结果即为我们平常所写的表达式类型，例如上图的表达式树的中序遍历为：<img src="img\公式1.png" alt="公式1" style="zoom:50%;" />，表达式树的先序遍历结果即为前缀表达式（波兰表示），表达式树的后续遍历被称为后缀表达式（逆波兰表示）。
+
+这里生成与计算表达式树有两个思路：
+
+​	第一个，重新构建表达式树的结点结构，里面存放左指针、右指针、运算符与数值。这样每个叶子结点只有数值域非空其他均为空，然后再计算的时候，使用递归的方法从下往上，递归地计算左子树与右子树在根处的值并保存到数值域来得到表达式树的值。<img src="img\一类表达式树结点结构.png" alt="一类表达式树结点结构" style="zoom:80%;" />
+
+​	第二个，可以在之前树的结点结构的基础之上，让数据域可以存放操作符和数值（比如采用 go 中的interface作为数据域或者在数据域中存放字符、ASCII 码等）。
+
+​	以上这两个方法各有利弊，有些时候一个内存占用大，一个占用小；有些时候表达式的值得来的方便。
+
+这里我们采用第二个方式，结点数据域内存放字符串string类型（数据值与操作符都可以使用 string 类型存储，只需要在循环或者递归的时候判断一下，叶子结点全是数值，非叶子结点全是操作符）。
+
+##### 4.1.5.3 AVL树
+
+##### 4.1.5.4 伸展树
+
+##### 4.1.5.5 B树
 
 ### 4.2 树
 
@@ -1264,4 +1974,4 @@ type Tree struct {
 
 ## 12、文本处理
 
-## 13、内存管理和 B 树
+## 13、内存管理
