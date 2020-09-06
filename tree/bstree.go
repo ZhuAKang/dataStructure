@@ -93,14 +93,18 @@ func deleteNode(node *TNode, value int) *TNode {
 		node.right = deleteNode(node.right, temp.element)
 	} else {
 		// 就一个或者零个孩子
+		// 一般来说，需要一个指示位指示待删除结点，然后后期释放掉该资源（下面1、2两步）
+		//1、 temp := node
 		if node.left == nil {
 			// 左侧没有孩子
 			// 直接放入右孩子
 			node = node.right
+			//2、 free(temp)
 		} else if node.right == nil {
 			// 右侧没孩子
 			// 直接放左侧的孩子
 			node = node.left
+			//2、 free(temp)
 		}
 	}
 	return node

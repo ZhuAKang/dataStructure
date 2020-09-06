@@ -1940,9 +1940,362 @@ func (tree *BTree) GetTreeNodeNumber() int {
 
 ​	以上这两个方法各有利弊，有些时候一个内存占用大，一个占用小；有些时候表达式的值得来的方便。
 
-这里我们采用第二个方式，结点数据域内存放字符串string类型（数据值与操作符都可以使用 string 类型存储，只需要在循环或者递归的时候判断一下，叶子结点全是数值，非叶子结点全是操作符）。
+这里我们采用第二个方式，结点数据域内存放字符 byte 类型（数据值与操作符都可以使用  byte 类型存储，只需要在循环或者递归的时候判断一下，叶子结点全是数值，非叶子结点全是操作符。**注意**：使用 byte 存的时候就只能存0-9的数字了，只为了演示功能就行）。
+
+**golang代码**：exptree.go文件
+
+```go
+package tree
+
+import (
+    "datastructure/stack"
+    "strconv"
+)
+
+// ETNode 表达式树上的结点
+type ETNode struct {
+    // 数据域，使用 string 存储表达式值和操作符等
+    element byte
+    // 左指针
+    left *ETNode
+    // 右指针
+    right *ETNode
+}
+
+// ExpTree 表达式树
+type ExpTree struct {
+    // 树的根节点
+    root *ETNode
+}
+
+// InitExpTree 表达式树的初始化函数，传入 string 类型的表达式，返回表达式树的指针
+func InitExpTree(expression string) *ExpTree {
+    if expression == "" {
+        return nil
+    }
+    // 对传入的字符串按照 byte 一个字节一个字节的读出来判断，
+    // 数字就放入一个栈，操作符就弹出两个栈顶组成新的子树再放入子树的根
+    var tNodeStack stack.Lstack
+    tNodeStack.InitStack(0)
+    for i := 0; i < len(expression); i++ {
+        var node ETNode
+        node.element = expression[i]
+        switch expression[i] {
+            // 如果是数字则入栈
+            case 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+            tNodeStack.Push(node)
+            case 42, 43, 45, 47:
+            // 出栈两个子树然后组成新的子树，再放入栈内
+            rightNumber, _ := tNodeStack.Pop()
+            right := rightNumber.(ETNode)
+            leftNumber, _ := tNodeStack.Pop()
+            left := leftNumber.(ETNode)
+            node.left = &left
+            node.right = &right
+            tNodeStack.Push(node)
+        }
+    }
+    // 此时栈顶即为最后的根
+    tree, _ := tNodeStack.Pop()
+    etree := tree.(ETNode)
+    var expTree ExpTree
+    expTree.root = &etree
+    return &expTree
+}
+
+// Compute 计算表达式树的最终数值的入口函数
+// 可以采用递归遍历的方式去计算
+func (expTree *ExpTree) Compute() int {
+    if expTree == nil {
+        return 0
+    }
+    return computeNode(expTree.root)
+}
+
+// computeNode 采用中序遍历的递归方式去求表达式树的值
+func computeNode(node *ETNode) int {
+    // 非叶子节点
+    if node != nil {
+        if node.left != nil && node.right != nil {
+            left := computeNode(node.left)
+            right := computeNode(node.right)
+            switch node.element {
+                case 42:
+                return left * right
+                case 43:
+                return left + right
+                case 45:
+                return left - right
+                case 47:
+                return left / right
+            }
+        } else {
+            // 字符串单个读出来是 byte，但是并没有找到单 byte（内存ASCII码）转 int 的
+            // 所以就先转为字符串，再从字符串转回数值
+            str := string(node.element)
+            value, _ := strconv.Atoi(str)
+            return value
+        }
+    }
+    // 叶子节点
+    return 0
+}
+
+```
+
+**tree_test.go 的测试代码：**
+
+```go
+func TestExpTree(t *testing.T) {
+	// 后缀表达式
+	exp := "42*22*3+*"
+	expTree := InitExpTree(exp)
+	value := expTree.Compute()
+	fmt.Println("表达式的最终计算结果是：", value)
+}
+```
 
 ##### 4.1.5.3 AVL树
+
+AVL（Adelson-Velskii 和 Landis）树是带有平衡条件的二叉查找树。一棵 AVL 树是其每个节点的左子树与右子树的高度差最多为 1 的二叉查找树。（空树的高度定为 -1 ）
+
+![AVL树](img\AVL树.png)
+
+如上图所示，**在未插入虚线所示节点的之前**，左边一棵是 AVL 树，右边一棵因为根节点5处的左子树高度比右子树高出了 2， 所以就不是 AVL 树。**但是在插入节点 6 之后**，左边这棵树就不是 AVL 树了（节点8处不满足平衡条件），而右边就是 AVL 树。
+
+- AVL 树的结点结构
+
+  因为在 AVL 树的相关操作中，需要时刻考虑是否满足平衡条件，所以一个解决办法就是每一个结点（在其结点结构中）保留高度信息。
+
+  <img src="img\AVL树节点结构.jpg" alt="AVL树节点结构" style="zoom:80%;" />
+
+  ```go
+  // avlTNode AVL树的结点
+  type avlTNode struct {
+  	// 数据域
+  	element int
+  	// 结点所处的高度
+  	height int8
+  	// 左孩子
+  	left *avlTNode
+  	// 右孩子
+  	right *avlTNode
+  }
+  ```
+
+- AVL 树的插入旋转
+
+  向一棵 AVL 树中插入节点，如果不会导致平衡被打破则可以直接插入，而如果插入打破了平衡，则需要对需要平衡的节点进行旋转来使其重新获得平衡。我们把必须重新进行平衡的节点叫做 a 节点。由于任意节点最多有两个孩子，因此高度不平衡时，a 节点的两个孩子的高度差 2。容易看出，打破原有节点平衡的插入分为四种情况：
+
+  1. 对 a 节点的左孩子的左子树进行了一次插入。
+  2. 对 a 节点的左孩子的右子树进行了一次插入。
+  3. 对 a 节点的右孩子的左子树进行了一次插入。
+  4. 对 a 节点的右孩子的右子树进行了一次插入。
+
+  情形 1 和情形 4 是关于节点 a 的镜像对象，同样情形 2 和情形 3 也是关于节点 a 的镜像对称。因此在理论上只有两种情况，但是在编程的时候仍需要考虑原始四种情况。
+
+  情形 1 和情形 4 是插入在外侧（即左--左或者右--右），该情形通过对树的**一次单旋**完成调整。第二种情形是插入在内侧（即左--右或者右--左），该情形需要通过稍微复杂一点的双旋转来处理。
+
+  **针对情形 1 情形 4 的单旋：**
+
+  <img src="img\单旋转1.jpg" alt="单旋转1" style="zoom:80%;" />
+
+  如上图，在节点 2 处再插入节点 1 ，此时就会导致节点 6 处失去平衡（节点 6 的左子树高度为 2，右子树的高度为 0），此时就应该**在失去平衡的节点处进行旋转**，即旋转节点 6 。
+
+  <img src="img\单次旋转2.jpg" alt="单次旋转2" style="zoom:80%;" />
+
+  再例如上面这张图，插入节点 1 后会在节点 4 处导致失衡，所以要对节点 4 进行 1 次 右旋。
+
+  <img src="img\单次旋转3.jpg" alt="单次旋转3" style="zoom:80%;" />
+
+  再例如上图，若插入节点 1 ，则会在根节点 6 处导致失衡，则需要在节点 6 处完成依次右旋，即将节点四提为根节点，节点 6 下沉作为节点 4 的右子树。同时，节点 4 的右子树要转为移动到节点 6 作为其左子树存在。
+
+  由上面的几种左--左插入旋转分析可以得到，在左--左插入导致节点失衡的时候，需要将失衡的节点 a 下沉，让 a 的左孩子代替节点 a 的位置，并同时将 a 的左孩子的右子树链接转作为失衡节点 a 下沉之后的左子树。
+
+  同样对于右--右插入，要采取一次左旋的方式，此时左旋需要将失衡节点的右孩子上提，失衡节点做为上提后节点的左孩子，同时原左子树作为之前失衡节点的右子树。如下图：
+
+  <img src="img\单次旋转4.jpg" alt="单次旋转4" style="zoom:80%;" /> 
+
+  **针对情形 2 情形 3 的双旋：**
+
+   上面的单旋对于情形 2 、3 并不适用。问题出于子树 Y 太深，一次单旋并没有降低它的深度：
+
+  <img src="img\一次单旋不满足.jpg" alt="一次单旋不满足" style="zoom:80%;" />
+
+  此时，就需要采用两次旋转的方式使其重新获得平衡。这两次又怎么区分呢？首先，插入的是子树 Y 且导致的是节点 k1 失衡，而不是子树 Y 的父节点 k2 。那么此时应该先以 k2 为旋转的中心进行一次左旋转， 旋转完成后再以 k1 为中心完成一次右旋转，则可以使树重新获得平衡。
+
+  ![双旋两种情况](img\双旋两种情况.jpg)
+
+  下面是双旋的一个示例：
+
+  <img src="img\双旋示例.jpg" alt="双旋示例" style="zoom:60%;" />
+
+  插入节点 7 后导致节点 8 失去平衡，所以要进行双旋。首先以 5 为中心进行一次左旋，然后再以 8 为中心进行一次右旋。
+
+  **go语言实现：**完整代码见tree/avltree.go
+
+  ```go
+  // Insert AVL 树的插入函数
+  func (tree *AvlTree) Insert(element int) bool {
+  	// 树为空，应该先构建根节点
+  	if tree.root == nil {
+  		var node avlTNode
+  		node.element = element
+  		node.height = 1
+  		tree.root = &node
+  	} else {
+  		// 树不为空，插入
+  		tree.root = insertInNode(tree.root, element)
+  	}
+  	return true
+  }
+  
+  // 在当前节点下插入指定元素值的节点，并返回节点插入后的当前根节点（不一定是树的根节点）
+  func insertInNode(node *avlTNode, element int) *avlTNode {
+  	// 当访问到待插入的位置的时候，生成节点
+  	if node == nil {
+  		var insertNode avlTNode
+  		insertNode.element = element
+  		node = &insertNode
+  		node.height = 1
+  	} else if node.element > element {
+  		// 向左插入
+  		node.left = insertInNode(node.left, element)
+  		// 左右子树的高度差为 2，(左边比右边高2)说明此时树的平衡已经被打破
+  		if nodeHeight(node.left)-nodeHeight(node.right) == 2 {
+  			if element < node.left.element {
+  				// 插在了左--左
+  				node = node.singleRotateWithLeft()
+  			} else {
+  				// 插在了左--右
+  				node = node.doubleRotateWithLeft()
+  			}
+  		}
+  	} else if node.element < element {
+  		// 向右插入
+  		node.right = insertInNode(node.right, element)
+  		// 左右子树的高度差为 2，(右边比左边高2)说明此时树的平衡已经被打破
+  		if nodeHeight(node.right)-nodeHeight(node.left) == 2 {
+  			if element > node.right.element {
+  				// 插在了右--右
+  				node = node.singleRotateWithRight()
+  			} else {
+  				// 插在了右--左
+  				node = node.doubleRotateWithRight()
+  			}
+  		}
+  	}
+  	// else 即节点中已经存在这个值了，我们就什么都不做
+  	// 更新节点高度信息
+  	node.height = Max(nodeHeight(node.left), nodeHeight(node.right)) + 1
+  	return node
+  }
+  
+  // singleRotateWithLeft 以 k2 为中心，将 k2 和其左孩子执行一次向右旋转
+  // 此函数只有当 k2 的左孩子存在的时候调用
+  // 然后在 k2 和他的左孩子之间执行一次旋转
+  // 并更新节点高度，返回新的当前子树根
+  /*
+  		k2                k1
+  	   /  \    ---->     /  \
+  	  k1   Z            X    k2
+  	 /  \                   /  \
+  	X    Y                 Y    Z
+  */
+  func (k2 *avlTNode) singleRotateWithLeft() *avlTNode {
+  	// 旋转
+  	k1 := k2.left
+  	k2.left = k1.right
+  	k1.right = k2
+  	// 更新高度
+  	k2.height = Max(nodeHeight(k2.left), nodeHeight(k2.right)) + 1
+  	k1.height = Max(nodeHeight(k1.left), nodeHeight(k2)) + 1
+  	return k1
+  }
+  
+  // singleRotateWithRight 以 k2 为中心，将 k2 和其右孩子执行一次向右旋转
+  // 此函数只有当 k2 的右孩子存在的时候调用
+  // 然后在 k2 和他的右孩子之间执行一次旋转
+  // 并更新节点高度，返回新的当前子树根
+  /*
+  		k2                k1
+  	   /  \    ---->     /  \
+  	  Z    k1           k2   Y
+  	      /  \         /  \
+  	     X    Y       Z    X
+  */
+  func (k2 *avlTNode) singleRotateWithRight() *avlTNode {
+  	// 旋转
+  	k1 := k2.right
+  	k2.right = k1.left
+  	k1.left = k2
+  	// 更新高度
+  	k2.height = Max(nodeHeight(k2.left), nodeHeight(k2.right)) + 1
+  	k1.height = Max(nodeHeight(k1.right), nodeHeight(k2)) + 1
+  	return k1
+  }
+  
+  // doubleRotateWithLeft 以 k3 为中心，在 k3 左孩子存在且左孩子的右孩子存在的情况下，进行双旋转
+  // 插入了左孩子的右子树导致的不平衡
+  // 做左--右双旋转，更新节点高度并返回根
+  /*
+  		k3            		k3				        k2
+  	   /  \   ----->  	  /	   \	------>       /    \
+        k1   D          	 k2		D			     k1     k3
+  	 /  \             	/  \				    /  \   /  \
+  	A    k2            k1	C				   A    B C    D
+  		/  \          /  \
+  	   B    C        A    B
+  */
+  func (k3 *avlTNode) doubleRotateWithLeft() *avlTNode {
+  	// 先以 k1 为中心旋 k2 上去
+  	k3.left = k3.left.singleRotateWithRight()
+  	// 再以 k3 为中心旋 k2 上去
+  	return k3.singleRotateWithLeft()
+  }
+  
+  // doubleRotateWithRight 以 k3 为中心，在 k3 右孩子存在且右孩子的左孩子存在的情况下，进行双旋转
+  // 插入了右孩子的左子树导致的不平衡
+  // 做右--左双旋转，更新节点高度并返回根
+  /*
+  		k3                    k3                        k2
+  	   /  \   ----->        /    \		----->        /    \
+        A   k1               A     k2                  k3     k1
+  	     /  \                    /  \               /  \   /  \
+  	    k2   D                  B    k1            A    B C    D
+  	   /  \                         /  \
+  	  B    C                       C    D
+  */
+  func (k3 *avlTNode) doubleRotateWithRight() *avlTNode {
+  	// 先以 k1 为中心，旋 k2 上去
+  	k3.right = k3.right.singleRotateWithLeft()
+  	// 再以 k3 为中心旋 k2 上去
+  	return k3.singleRotateWithRight()
+  
+  }
+  
+  // Max 返回两个值中的大者
+  func Max(n, m int8) int8 {
+  	if n > m {
+  		return n
+  	}
+  	return m
+  }
+  
+  // nodeHeight 返回节点的高度（防止空指针异常）
+  func nodeHeight(node *avlTNode) int8 {
+  	if node == nil {
+  		return 0
+  	}
+  	return node.height
+  }
+  ```
+
+  **测试代码见 tree_test.go 下的 TestAvlTree 函数。**
+
+- AVL 树的查找与删除 
+
+  AVL 树也满足左小右大的原则，所以说在 AVL 树上的查找与在二叉查找（搜索）树上的 查找是一样的，这里就不详述和写代码实现了。比较麻烦的是 AVL 树的删除操作，这个要比插入操作还要复杂，如果说删除操作使用的较少，可以使用懒惰删除（在节点内再设一个标志位指示此节点是否处于被删除状态）。但是如果删除操作使用的较多，导致树上很大一部分节点都是无效的，此时内存占用也不是很好，则需要自己编写代码来删除节点了。
 
 ##### 4.1.5.4 伸展树
 

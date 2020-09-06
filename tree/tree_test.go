@@ -133,3 +133,26 @@ func TestBSTree(t *testing.T) {
 	btree.LayerOrder()
 	fmt.Println()
 }
+
+func TestExpTree(t *testing.T) {
+	// 后缀表达式
+	exp := "42*22*3+*"
+	expTree := InitExpTree(exp)
+	value := expTree.Compute()
+	fmt.Println("表达式的最终计算结果是：", value)
+}
+
+func TestAvlTree(t *testing.T) {
+	// 初始化一棵二叉平衡树
+	tree := InitAvlTree()
+	tree.Insert(5)
+	tree.Insert(3)
+	tree.Insert(7)
+	tree.Insert(6)
+	tree.Insert(4)
+	tree.LayerOrder()
+	fmt.Println()
+	tree.Insert(1)
+	tree.LayerOrder()
+	fmt.Println()
+}
