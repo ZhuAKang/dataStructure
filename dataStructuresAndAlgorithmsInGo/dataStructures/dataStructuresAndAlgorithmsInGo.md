@@ -2299,7 +2299,505 @@ AVL（Adelson-Velskii 和 Landis）树是带有平衡条件的二叉查找树。
 
 ##### 4.1.5.4 伸展树
 
+伸展树（Splay Tree）也叫分裂树，是一种二叉排序树，，它能在**O(log n)**内完成插入、查找和删除操作。
+
+在伸展树上的一般操作都基于伸展操作：假设想要对一个二叉查找树执行一系列的查找操作，为了使整个查找时间更小，被查频率高的那些条目就应当经常处于靠近树根的位置。于是想到设计一个简单方法， **在每次查找之后对树进行重构，把被查找的条目搬移到离树根近一些的地方**。伸展树应运而生。伸展树是一种自调整形式的二叉查找树，它会沿着从某个节点到树根之间的路径，通过一系列的旋转把这个节点搬移到树根去。
+
+它的优势在于不需要记录用于平衡树的冗余信息。**注意：伸展树也是一颗有序树，左儿子小于本身，本身小于右儿子。**伸展树不需要记录树的结点高度信息，且伸展树也是一棵二叉搜索树，但是由于伸展操作会涉及自底向上操作父亲结点，所以不可以直接利用二叉搜索树的结点数据结构，需要在二叉搜索树结点的结构基础上增加父亲结点指针。
+
+```go
+// SPTNode 伸展树的结点结构
+type SPTNode struct {
+	// 数据域
+	element int
+	// 父、左孩子、右孩子指针
+	fa, left, right *SPTNode
+}
+
+// SPTree 伸展树
+type SPTree struct {
+	// 根节点
+	root *SPTNode
+}
+```
+
+重新构造伸展树有两个想法：**一个是执行单旋转，从下向上依次进行；另一个想法就是采取展开策略如下伸展树的基本操作中伸展操作。**
+
+特别注意下面展开操作中的一字旋转方式，不是自下向上的单旋！！！
+
+伸展树的基本操作：
+
+　　1、伸展操作，即伸展树作自我调整。
+
+　　2、判断元素x是否在伸展树中。
+
+　　3、将元素x插入到伸展树。
+
+　　4、将元素x从伸展树中删除。
+
+　　5、将两颗伸展树S1和S2合并为一颗伸展树(其中S1的所有元素都小于S2的元素）。
+
+　　6、以x为界，将伸展树S分离成两颗伸展树S1和S2，其中S1中所有元素都小于x，S2中所有元素都大于x。
+
+　　其中基本操作2~6都是在伸展操作的基础上进行的。
+
+1. 伸展操作------Splay( x , S )
+
+   伸展操作是在保持伸展树有序性的前提下，通过一系列旋转将伸展树S中的元素x调整至树的根部。 在调整过程中，要分为以下三种情况分别处理：
+
+   - 情况1：结点 x 的父节点 y 是根节点
+
+     只需要一次左旋或者右旋即可将结点 x 移动到树根的位置。如下图：
+
+     <img src="img\伸展树一次旋转.png" alt="伸展树一次旋转" style="zoom:70%;" />
+
+     这个左旋和右旋的操作和 avl树的左旋右旋操作是一样的。
+
+   - 情况2：节点x的父节点y不是根节点，y的父节点为z且x与y同时是各自父节点的左孩子或者同时是各自父节点的右儿子。
+
+     即 结点 x 在左左或者右右的情况此时就要进行旋转。称这种旋转为**一字旋转**。（这儿是从上向下旋转）
+
+     <img src="img\一字旋转.png" alt="一字旋转" style="zoom:40%;" />
+
+   - 情况3：节点x的父节点y不是根节点,y的父节点为z，x与y中一个是其父节点的左儿子，另一个是其父节点的右儿子。执行左右或者右左旋转，即先左旋再右旋，或者右旋再左旋。我们称这种旋转为**之字型旋转**。
+
+     <img src="img\之字旋转.png" alt="之字旋转" style="zoom:40%;" />
+
+     上图示例为右左类型，左右类型的旋转类似。
+
+     **代码如下：**
+     
+     ```go
+     // Splay 伸展操作
+     // 对树上的数据域的值为 element 的结点进行伸展操作
+     // 返回树
+     func Splay(element int, tree *SPTree) *SPTree {
+     	// 树为空
+     	if tree == nil {
+     		return nil
+     	}
+     	// 查找树上有没有这个结点
+     	result := search(element, tree.root)
+     	if result == nil {
+     		return nil
+     	}
+     	tree.root = splayN(result)
+     	return tree
+     }
+     
+     // SplayN 对树上某一结点进行伸展
+     func splayN(node *SPTNode) *SPTNode {
+     	// 说明是根节点，不存在父节点，那就直接不用动了
+     	if node.fa == nil {
+     		return node
+     	}
+     	// 父节点存在，此时就要开始判断了
+     	father := node.fa
+     	// 父节点以上没有结点了，说明父节点是根节点
+     	// 执行一次左旋或者右旋
+     	if father.fa == nil {
+     		// 当前节点在父节点的左侧，执行一次右旋
+     		if father.left == node {
+     			node = singleRoateWithLeft(father)
+     		} else {
+     			// 当前节点子啊父节点的右侧，执行一次左旋
+     			node = singleRoateWithRight(father)
+     		}
+     		return node
+     	}
+     	// 父节点的父节点不为空，即当前状态是一字或之子（此处需要递归）
+     	grandFather := father.fa
+     	if grandFather.left == father && father.left == node {
+     		// 处于左左状态，一字旋转，向右旋
+     		father = singleRoateWithLeft(grandFather)
+     		node = singleRoateWithLeft(father)
+     	} else if grandFather.right == father && father.right == node {
+     		// 处于右右状态，一字旋转，向左旋
+     		father = singleRoateWithRight(grandFather)
+     		node = singleRoateWithRight(father)
+     
+     	} else if grandFather.left == father && father.right == node {
+     		// 处于左右状态，之子旋转
+     		// 待上升节点先在父节点处左旋上升
+     		grandFather.left = singleRoateWithRight(father)
+     		node = singleRoateWithLeft(grandFather)
+     	} else {
+     		// 处于右左状态，之子旋转
+     		grandFather.right = singleRoateWithLeft(father)
+     		node = singleRoateWithRight(grandFather)
+     	}
+     	// 递归继续调用
+     	return splayN(node)
+     
+     }
+     
+     // singleRoateWithLeft 在当前节点（存在左子树）执行一次右旋操作
+     /*
+     		k2                k1
+     	   /  \    ---->     /  \
+     	  k1   Z            X    k2
+     	 /  \                   /  \
+     	X    Y                 Y    Z
+     */
+     func singleRoateWithLeft(k2 *SPTNode) *SPTNode {
+     	k1 := k2.left
+     	k2.left = k1.right
+         if k2.left != nil {
+     		k2.left.fa = k2
+     	}
+     	k1.right = k2
+     	k1.fa = k2.fa
+     	k2.fa = k1
+     	if k1.fa != nil {
+     		// 父亲节点存在，则应该更新其左或右孩子指针
+     		// 之前的父亲节点指向的是 k2 ,现在改成 k1
+     		if k1.fa.left == k2 {
+     			k1.fa.left = k1
+     		} else {
+     			k1.fa.right = k1
+     		}
+     
+     	}
+     	return k1
+     }
+     
+     // singleRoateWithRight 在当前节点（存在右子树）执行一次左旋操作
+     /*
+     		k2                k1
+     	   /  \    ---->     /  \
+     	  Z    k1           k2   Y
+     	      /  \         /  \
+     	     X    Y       Z    X
+     */
+     func singleRoateWithRight(k2 *SPTNode) *SPTNode {
+     	k1 := k2.right
+     	k2.right = k1.left
+         // 更新父节点信息
+     	if k2.right != nil {
+     		k2.right.fa = k2
+     	}
+     	k1.left = k2
+     	k1.fa = k2.fa
+     	k2.fa = k1
+     	if k1.fa != nil {
+     		// 父亲节点存在，则应该更新其左或右孩子指针
+     		// 之前的父亲节点指向的是 k2 ,现在改成 k1
+     		if k1.fa.left == k2 {
+     			k1.fa.left = k1
+     		} else {
+     			k1.fa.right = k1
+     		}
+     
+     	}
+     	return k1
+     }
+     ```
+     
+     
+
+2. 判断元素x是否在伸展树中--------Find(XXXX)
+
+   首先，与在二叉树中查找操作一样，在伸展树中查找元素x。如果x 在树中，则将x 调整至伸展树S 的根部 (执行 Splay（x，S) )。
+
+   ```go
+   // search 在子树上查找数据域的值为 element 的结点，
+   // 查找到就返回该节点指针，查找失败返回nil
+   // 重要：这个函数只是查找有没有，这样方便在 伸展的时候进行操作，
+   // 并不是查找并伸展的操作，这个操作另外有个函数 Find
+   func search(element int, subtree *SPTNode) *SPTNode {
+   	if subtree == nil {
+   		return nil
+   	} else if subtree.element == element {
+   		return subtree
+   	} else if subtree.element > element {
+   		sL := search(element, subtree.left)
+   		if sL != nil {
+   			return sL
+   		}
+   	} else {
+   		sR := search(element, subtree.right)
+   		if sR != nil {
+   			return sR
+   		}
+   	}
+   	return nil
+   }
+   
+   // LayerOrder 层序遍历，为了方便观察树的形状
+   func (tree *SPTree) LayerOrder() {
+   	if tree == nil {
+   		return
+   	}
+   	var queue queue.Queue
+   	_ = queue.InitQueue(10)
+   	// 根节点入队
+   	queue.InQueue(tree.root)
+   	for !queue.IsEmpty() {
+   		top, _ := queue.OutQueue()
+   		topNode := top.(*SPTNode)
+   		fmt.Print(topNode.element)
+   		if topNode.left != nil {
+   			queue.InQueue(topNode.left)
+   		}
+   		if topNode.right != nil {
+   			queue.InQueue(topNode.right)
+   		}
+   	}
+   	fmt.Println()
+   }
+   
+   // Find 在伸展树上查找元素 element
+   // 找到了就进行伸展并返回伸展后树指针和 true
+   // 没找到了返回树指针和 false
+   func Find(element int, tree *SPTree) (*SPTree, bool) {
+   	if tree == nil {
+   		return tree, false
+   	}
+   	// 查找有没有这个节点
+   	node := search(element, tree.root)
+   	if node == nil {
+   		return tree, false
+   	}
+   	tree = Splay(element, tree)
+   	return tree, true
+   }
+   ```
+
+   
+
+3. 将元素x插入到伸展树
+
+   与处理普通的二叉查找树一样，将 x 插入到伸展树 S 中的相应位置上，再将 x 调整至伸展树S的根部 (执行 Splay（x，S））。
+
+   ```go
+   // Insert 插入函数，向伸展树中插入一个值为 element 的结点
+   // 插入成功返回 true，插入失败返回 false
+   func (tree *SPTree) Insert(element int) bool {
+   	if tree == nil {
+   		return false
+   	}
+   	var node SPTNode
+   	node.element = element
+   	// 树中没根节点，插入的作为根节点
+   	if tree.root == nil {
+   		tree.root = &node
+   		return true
+   	}
+   	// 现在可以判断并插入了
+   	// 指示当前访问节点(插入位置)
+   	p := tree.root
+   	beforeNode := p.fa
+   	// 一直访问下去找到待插入位置
+   	for p != nil {
+   		// 查到了树上已有该节点了
+   		if p.element == element {
+   			return false
+   		}
+   		if p.element > element {
+   			beforeNode = p
+   			p = p.left
+   		} else {
+   			beforeNode = p
+   			p = p.right
+   		}
+   	}
+   	// 查到了插入位置，在 beforeNode 的孩子位置
+   	if beforeNode.element > element {
+   		// 插在左孩子位置
+   		beforeNode.left = &node
+   		node.fa = beforeNode
+   	} else {
+   		// 插在右孩子位置
+   		beforeNode.right = &node
+   		node.fa = beforeNode
+   	}
+   	tree.root = splayN(&node)
+   	return true
+   }
+   
+   ```
+
+   
+
+4. 将元素x从伸展树中删除
+
+   首先，用在二叉树中查找元素的方法找到x的位置。如果x没有孩子或者只有一个孩子，那么直接将x删掉，并通过 Splay 操作，将x节点的父节点调整到伸展树的根节点处，否则，向下查找x的后继y，用y替代x 的位置，最后执行 Splay（y，S),将y调整为伸展树的根。
+
+   ```go
+// Delete 删除伸展树上节点值为 element 的节点
+   // 删除成功返回 true ，删除失败返回false
+   func (tree *SPTree) Delete(element int) bool {
+   	node := search(element, tree.root)
+   	// 树上不存在待删除的节点，删除失败
+   	if node == nil {
+   		return false
+   	}
+   	father := node.fa
+   	// 左右孩子都不为空，则选择右边最小的元素作为替代
+   	if node.left != nil && node.right != nil {
+   		// 找到待换上去的节点 P （p 有两种可能，有右孩子或没有右孩子是叶子节点）
+   		p := node.right
+   		for p.left != nil {
+   			p = p.left
+   		}
+   		// 删除
+   		node.element = p.element
+   		if p.fa.left == p {
+   			p.fa.left = p.right
+   		}
+   		if p.fa.right == p {
+   			p.fa.right = p.right
+   		}
+   		// 删除成功，对父节点进行一次伸展
+   		if father != nil {
+   			tree = Splay(father.element, tree)
+   		}
+   	} else {
+   		// 有一个孩子或者零个孩子
+   		// 只有左孩子
+   		if node.left != nil {
+   			node.element = node.left.element
+   			node.left = nil
+   			// 删除成功，对父节点进行一次伸展
+   			if father != nil {
+   				tree = Splay(father.element, tree)
+   			}
+   		} else if node.right != nil {
+   			// 只有右孩子
+   			node.element = node.right.element
+   			node.right = nil
+   			// 删除成功，对父节点进行一次伸展
+   			if father != nil {
+   				tree = Splay(father.element, tree)
+   			}
+   		} else {
+   			// 没有孩子
+   			if father != nil {
+   				if father.left == node {
+   					father.left = nil
+   				} else {
+   					father.right = nil
+   				}
+   				// 删除成功，对父节点进行一次伸展
+   				tree = Splay(father.element, tree)
+   			} else {
+   				// 没有孩子也没有父节点，说明这树上就一个节点（根节点），且要删除它
+   				tree.root = nil
+   			}
+   		}
+   	}
+   	return true
+   }
+   
+   ```
+   
+5. 将两颗伸展树 S1 和 S2 合并成为一颗伸展树----- Join（S1,S2）（其中 S1 的所有元素值都小于S2的所有元素值)
+
+   　　首先，找到伸展树S1中最大的一个元素x,再通过 Splay（x，S1）将x调整到伸展树S1的根。然后再将 S2 作为 x 节点的右子树。这样，就得到了新的伸展树 S。
+
+6. 以 x 为界，将伸展树 S 分离为两颗伸展树 S1 和 S2 ------ Split（x,S)（其中 S1 中所有元素都小于 x，S2 中所有元素都大于 x ）
+
+   　　首先执行 Find（x，S），将元素x调整为伸展树的根节点，则 x 的左子树就是 S1 ,二右子树就是 S2。然后去除 x 通往左右儿子的边
+
+   
+
+   在伸展操作的基础上，除了上面介绍的五种最基本操作，伸展树还支持求最大值，最小值，前驱，后继等多种操作，这些基本操作也都是建立在伸展操作的基础上的。5、6两个函数我就没写，懒得再写了。
+
+测试函数（在 tree_test.go 内的 TestSPTree 函数）：
+
+```go
+func TestSPTree(t *testing.T) {
+	// 初始化一棵伸展树
+	/*
+			3
+		  /   \
+		 1     5
+		  \   /
+		   2 4
+	*/
+	tree := InitSPTree()
+	var node1, node2, node3, node4, node5 SPTNode
+	node1.element = 1
+	node2.element = 2
+	node3.element = 3
+	node4.element = 4
+	node5.element = 5
+	tree.root = &node3
+	node3.left = &node1
+	node3.right = &node5
+	node1.right = &node2
+	node1.fa = &node3
+	node5.left = &node4
+	node5.fa = &node3
+	node2.fa = &node1
+	node4.fa = &node5
+	tree.LayerOrder()
+	result := search(4, tree.root)
+	fmt.Println("查找结果：", result)
+	tree = Splay(4, tree)
+	fmt.Println("当前树的根为", tree.root)
+	fmt.Print("层序打印的结果：")
+	// 层序打印树
+	tree.LayerOrder()
+	fmt.Print("先序打印的结果：")
+	// 先序打印
+	tree.PreOrderByRec()
+	// 查找结点 1
+	tree, ok := Find(1, tree)
+	if ok {
+		fmt.Println()
+		fmt.Println("查找成功，查找并伸展后的树为：")
+		fmt.Print("层序打印的结果：")
+		// 层序打印树
+		tree.LayerOrder()
+		fmt.Print("先序打印的结果：")
+		// 先序打印
+		tree.PreOrderByRec()
+	} else {
+		fmt.Println("查找失败")
+	}
+	ok1 := tree.Insert(7)
+	if ok1 {
+		fmt.Println()
+		fmt.Println("插入成功，插入并伸展后的树为：")
+		fmt.Print("层序打印的结果：")
+		// 层序打印树
+		tree.LayerOrder()
+		fmt.Print("先序打印的结果：")
+		// 先序打印
+		tree.PreOrderByRec()
+	} else {
+		fmt.Println("插入失败")
+	}
+	ok2 := tree.Delete(4)
+	if ok2 {
+		fmt.Println()
+		fmt.Println("删除成功，删除并伸展后的树为：")
+		// 层序打印树
+		fmt.Print("层序打印的结果：")
+		tree.LayerOrder()
+		// 先序打印
+		fmt.Print("先序打印的结果：")
+		tree.PreOrderByRec()
+	} else {
+		fmt.Println("删除失败")
+	}
+	// tree = Splay(5, tree)
+	// fmt.Println("当前树的根为", tree.root)
+	// // 层序打印树
+	// fmt.Print("层序打印的结果：")
+	// tree.LayerOrder()
+	// // 先序打印
+	// fmt.Print("先序打印的结果：")
+	// tree.PreOrderByRec()
+}
+```
+
+
+
 ##### 4.1.5.5 B树
+
+
 
 ### 4.2 树
 
